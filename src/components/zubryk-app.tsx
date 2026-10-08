@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { CircleHelp, Sparkles, Trophy, Volume2, VolumeX } from "lucide-react";
 import { fest } from "@/game/audio";
 import { LEVELS, PRAISE, STAGES, shuffle, type Item, type Level } from "@/game/content";
+import { RU_LEVELS, RU_PRAISE, RU_STAGES } from "@/game/content-ru";
+import { BE, RU, type Copy } from "@/game/copy";
 import {
   better,
   clock,
@@ -14,7 +16,7 @@ import {
   NEED_CORRECT,
 } from "@/game/score";
 
-type Screen = "name" | "home" | "rule" | "play" | "result" | "board";
+type Screen = "pick" | "name" | "home" | "rule" | "play" | "result" | "board";
 type Stamp = { ms: number; ok: boolean };
 type Miss = { index: number; item: Item };
 type Bit = {
@@ -31,14 +33,19 @@ type Bit = {
   kind: "chip" | "note" | "mote";
 };
 type Save = { current: string; players: Player[] };
+type CourseId = "be" | "ru";
 
-const SAVE = "zubryk-ladder-v1";
+const SAVE_KEYS: Record<CourseId, string> = {
+  be: "zubryk-ladder-v1",
+  ru: "zubryk-ladder-ru-v1",
+};
+const COURSE_KEY = "zubryk-course";
 const PREF = "zubryk-prefs-v2";
 const COLORS = ["#f0b429", "#4c74ff", "#fff6e8", "#ff8f6b", "#ffd1e8"];
 
-function loadSave(): Save {
+function loadSave(key: string): Save {
   try {
-    const raw = JSON.parse(localStorage.getItem(SAVE) || "") as Save;
+    const raw = JSON.parse(localStorage.getItem(key) || "") as Save;
     if (!raw || !Array.isArray(raw.players)) return { current: "", players: [] };
     return raw;
   } catch {
@@ -46,18 +53,19 @@ function loadSave(): Save {
   }
 }
 
-function openCount(player: Player | undefined): number {
+function openCount(player: Player | undefined, levels: Level[]): number {
   if (!player) return 1;
   let count = 1;
-  for (const level of LEVELS) {
+  for (const level of levels) {
     if (!isPass(player.best[level.id])) break;
     count += 1;
   }
-  return Math.min(count, LEVELS.length);
+  return Math.min(count, levels.length);
 }
 
 export function ZubrykApp() {
-  const [screen, setScreen] = useState<Screen>("name");
+  const [screen, setScreen] = useState<Screen>("pick");
+  const [courseId, setCourseId] = useState<CourseId>("be");
   const [players, setPlayers] = useState<Player[]>([]);
   const [current, setCurrent] = useState("");
   const [draft, setDraft] = useState("");
@@ -99,16 +107,41 @@ export function ZubrykApp() {
   motionRef.current = motion;
 
   const player = players.find((item) => item.name === current);
-  const unlocked = openCount(player);
-  const level: Level | undefined = LEVELS[levelIndex];
+  const pack =
+    courseId === "ru"
+      ? { levels: RU_LEVELS, stages: RU_STAGES, praise: RU_PRAISE, t: RU }
+      : { levels: LEVELS, stages: STAGES, praise: PRAISE, t: BE };
+  const t: Copy = screen === "pick" ? RU : pack.t;
+  const unlocked = openCount(player, pack.levels);
+  const level: Level | undefined = pack.levels[levelIndex];
   const board = standings(players);
   const myPlace = board.findIndex((row) => row.player.name === current);
 
-  useEffect(() => {
-    const save = loadSave();
+  function selectCourse(id: CourseId) {
+    const save = loadSave(SAVE_KEYS[id]);
+    setCourseId(id);
     setPlayers(save.players);
     setCurrent(save.current);
-    if (save.current && save.players.some((item) => item.name === save.current)) setScreen("home");
+    setNote("");
+    setScreen(save.current && save.players.some((item) => item.name === save.current) ? "home" : "name");
+    localStorage.setItem(COURSE_KEY, id);
+    document.documentElement.lang = id === "ru" ? "ru" : "be";
+    fest.ensure();
+    fest.tap();
+  }
+
+  useEffect(() => {
+    const stored = localStorage.getItem(COURSE_KEY);
+    const id: CourseId | null = stored === "ru" || stored === "be" ? stored : null;
+    if (id) {
+      const save = loadSave(SAVE_KEYS[id]);
+      setCourseId(id);
+      setPlayers(save.players);
+      setCurrent(save.current);
+      if (save.current && save.players.some((item) => item.name === save.current)) setScreen("home");
+      else setScreen("name");
+      document.documentElement.lang = id === "ru" ? "ru" : "be";
+    }
     try {
       const prefs = JSON.parse(localStorage.getItem(PREF) || "{}") as { sound?: boolean; motion?: boolean };
       if (typeof prefs.sound === "boolean") setSound(prefs.sound);
@@ -128,8 +161,9 @@ export function ZubrykApp() {
       skipSave.current = false;
       return;
     }
-    localStorage.setItem(SAVE, JSON.stringify({ current, players }));
-  }, [current, players]);
+    if (screen === "pick") return;
+    localStorage.setItem(SAVE_KEYS[courseId], JSON.stringify({ current, players }));
+  }, [current, players, courseId, screen]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -234,7 +268,7 @@ export function ZubrykApp() {
   function choosePlayer(name: string) {
     const clean = name.trim().replace(/\s+/g, " ").slice(0, 16);
     if (clean.length < 2) {
-      setNote("Імя — хаця б 2 літары");
+      setNote(t.shortName);
       return;
     }
     setNote("");
@@ -247,7 +281,7 @@ export function ZubrykApp() {
   }
 
   function begin(nextIndex: number) {
-    const next = LEVELS[nextIndex];
+    const next = pack.levels[nextIndex];
     if (!next) return;
     fest.ensure();
     fest.hello();
@@ -265,7 +299,7 @@ export function ZubrykApp() {
     setLocked(false);
     setPicked(null);
     setPose("idle");
-    setSpeech("Ну, пачалі!");
+    setSpeech(t.go);
     setScreen("play");
   }
 
@@ -292,11 +326,11 @@ export function ZubrykApp() {
       setKick(nextHype >= 4 ? "kick-big" : "kick");
       setFlash(true);
       burst(nextHype);
-      const word = PRAISE[nextHype % PRAISE.length] ?? "Так!";
+      const word = pack.praise[nextHype % pack.praise.length] ?? "Так!";
       setSpeech(word);
       praise(`+${gained}`);
-      const stage = STAGES[nextHype];
-      if (stage && (nextHype === 2 || nextHype === 4 || nextHype === 6)) setSlam(stage.name);
+      const stageHit = pack.stages[nextHype];
+      if (stageHit && (nextHype === 2 || nextHype === 4 || nextHype === 6)) setSlam(stageHit.name);
       window.setTimeout(() => {
         setFlash(false);
         setKick("");
@@ -306,7 +340,7 @@ export function ZubrykApp() {
     } else {
       fest.wrong();
       setPose("oops");
-      setSpeech("Амаль! Глядзі.");
+      setSpeech(t.almost);
       setMisses((list) => [...list, { index, item }]);
       setKick("kick");
       window.setTimeout(() => setKick(""), 420);
@@ -324,7 +358,7 @@ export function ZubrykApp() {
     setPicked(null);
     startedRef.current = performance.now();
     setPose(hype >= 6 ? "dance" : "idle");
-    setSpeech(hype >= 6 ? "Танцуем!" : "Яшчэ!");
+    setSpeech(hype >= 6 ? t.dance : t.more);
   }
 
   function finish() {
@@ -342,7 +376,7 @@ export function ZubrykApp() {
       fest.setLevel(8);
       fest.fanfare();
       setPose("dance");
-      setSlam("Купалле!");
+      setSlam(t.fest);
       burst(10);
       setHype(8);
     }
@@ -372,7 +406,7 @@ export function ZubrykApp() {
     return () => window.removeEventListener("keydown", onKey);
   }, [screen, locked]);
 
-  const stage = STAGES[Math.min(hype, STAGES.length - 1)] ?? STAGES[0];
+  const stage = pack.stages[Math.min(hype, pack.stages.length - 1)] ?? pack.stages[0];
   const item = queue[index];
   const liveSec = Math.max(0, Math.floor((nowMs - startedRef.current) / 1000));
   const runMs = stamps.reduce((sum, stamp) => sum + stamp.ms, 0);
@@ -397,7 +431,7 @@ export function ZubrykApp() {
             (pose === "cheer" ? "pop" : pose === "dance" ? "dance" : pose === "oops" ? "oops" : motion ? "bob" : "")
           }
           src={screen === "result" && passedRun ? "/art/dance.png" : `/art/${pose}.png`}
-          alt="Зубрык"
+          alt="Дима"
         />
         {screen === "play" ? (
           <div className="bubble">
@@ -416,19 +450,19 @@ export function ZubrykApp() {
       <div className={`frame ${kick}`}>
         <header className="topbar">
           <div className="brand">
-            <h1>Зубрык</h1>
-            <p>{current ? current : "узроўні 2–6 клас"}</p>
+            <h1>Зубрик</h1>
+            <p>{current && screen !== "pick" ? current : t.sub}</p>
           </div>
           <div className="grow" />
-          {screen !== "name" ? (
-            <button className="icon" aria-label="Рэйтынг" onClick={() => setScreen("board")}>
+          {screen !== "name" && screen !== "pick" ? (
+            <button className="icon" aria-label={t.rate} onClick={() => setScreen("board")}>
               <Trophy size={20} />
             </button>
           ) : null}
           <button
             className="icon"
             aria-pressed={sound}
-            aria-label="Гук"
+            aria-label={t.sound}
             onClick={() => {
               setSound((value) => {
                 const next = !value;
@@ -441,21 +475,45 @@ export function ZubrykApp() {
           >
             {sound ? <Volume2 size={20} /> : <VolumeX size={20} />}
           </button>
-          <button className="icon" aria-pressed={motion} aria-label="Рух" onClick={() => setMotion((value) => !value)}>
+          <button className="icon" aria-pressed={motion} aria-label={t.motion} onClick={() => setMotion((value) => !value)}>
             <Sparkles size={20} />
           </button>
-          <button className="icon" aria-label="Як гуляць" onClick={() => setHelp(true)}>
+          <button className="icon" aria-label={t.how} onClick={() => setHelp(true)}>
             <CircleHelp size={20} />
           </button>
         </header>
 
         {note ? <p className="note">{note}</p> : null}
 
+        {screen === "pick" ? (
+          <section className="card">
+            <div className="kicker">Зубрик</div>
+            <h2 className="prompt">Что тренируем?</h2>
+            <p className="hint">Одинаковая игра: уровни со 2 по 6 класс, очки за скорость и рейтинг.</p>
+            <div className="stack">
+              <button className="level" onClick={() => selectCourse("be")}>
+                <span className="num">Б</span>
+                <span className="level-copy">
+                  <b>Беларуская мова</b>
+                  <span className="ru">2–6 клас</span>
+                </span>
+              </button>
+              <button className="level now" onClick={() => selectCourse("ru")}>
+                <span className="num">Р</span>
+                <span className="level-copy">
+                  <b>Русский язык</b>
+                  <span className="ru">2–6 класс</span>
+                </span>
+              </button>
+            </div>
+          </section>
+        ) : null}
+
         {screen === "name" ? (
           <section className="card namebox">
-            <div className="kicker">Гулец</div>
-            <h2 className="prompt">Як цябе завуць?</h2>
-            <p className="hint">Імя трапіць у рэйтынг на гэтай прыладзе. Можна гуляць удваіх.</p>
+            <div className="kicker">{t.player}</div>
+            <h2 className="prompt">{t.askName}</h2>
+            <p className="hint">{t.nameHint}</p>
             <form
               onSubmit={(event) => {
                 event.preventDefault();
@@ -466,12 +524,12 @@ export function ZubrykApp() {
                 value={draft}
                 maxLength={16}
                 autoComplete="nickname"
-                placeholder="Імя"
+                placeholder={t.namePh}
                 onChange={(event) => setDraft(event.target.value)}
               />
               <div className="row">
                 <button className="btn gold" type="submit">
-                  Гуляць
+                  {t.play}
                 </button>
               </div>
             </form>
@@ -480,11 +538,18 @@ export function ZubrykApp() {
                 {players.map((item) => (
                   <button key={item.name} className="level" onClick={() => choosePlayer(item.name)}>
                     <b>{item.name}</b>
-                    <span className="best">{totals(item).points} ачкоў</span>
+                    <span className="best">
+                      {totals(item).points} {t.pts}
+                    </span>
                   </button>
                 ))}
               </div>
             ) : null}
+            <div className="row">
+              <button className="btn ghost" type="button" onClick={() => setScreen("pick")}>
+                {t.switchCourse}
+              </button>
+            </div>
           </section>
         ) : null}
 
@@ -492,34 +557,42 @@ export function ZubrykApp() {
           <>
             <section className="lede">
               <strong>
-                {current}, спачатку лёгкае, потым цяжэйшае.
+                {current}, {t.hello}
               </strong>
-              <p>З 2 класа да 6. Хуткі правільны адказ дае больш ачкоў. Каб адкрыць наступны ўзровень, трэба {NEED_CORRECT} з 6.</p>
+              <p>{t.ladder}</p>
               <div className="row">
                 <button className="btn gold" onClick={() => setScreen("board")}>
-                  Рэйтынг{mine ? ` · ${mine.points}` : ""}
+                  {t.rating}
+                  {mine ? ` · ${mine.points}` : ""}
                 </button>
                 <button className="btn ghost" onClick={() => setScreen("name")}>
-                  Змяніць імя
+                  {t.changeName}
+                </button>
+                <button className="btn ghost" onClick={() => setScreen("pick")}>
+                  {t.switchCourse}
                 </button>
               </div>
             </section>
             <div className="path">
-              {LEVELS.map((item, i) => {
-                const showHead = i === 0 || item.grade !== LEVELS[i - 1]?.grade;
+              {pack.levels.map((item, i) => {
+                const showHead = i === 0 || item.grade !== pack.levels[i - 1]?.grade;
                 const best = player?.best[item.id];
                 const done = isPass(best);
                 const open = i < unlocked;
                 const cls = done ? "level done" : open ? "level now" : "level locked";
                 return (
                   <div key={item.id}>
-                    {showHead ? <div className="grade">{item.grade} клас</div> : null}
+                    {showHead ? (
+                      <div className="grade">
+                        {item.grade} {t.grade}
+                      </div>
+                    ) : null}
                     <button
                       className={cls}
                       onClick={() => {
                         fest.tap();
                         if (!open) {
-                          setNote("Спачатку прайдзі папярэдні ўзровень");
+                          setNote(t.lockedNote);
                           return;
                         }
                         setNote("");
@@ -532,7 +605,7 @@ export function ZubrykApp() {
                         <b>{item.title}</b>
                         <span className="ru">{item.ru}</span>
                       </span>
-                      <span className="best">{done ? `${best?.points ?? 0}` : open ? "адкрыта" : "закрыта"}</span>
+                      <span className="best">{done ? `${best?.points ?? 0}` : open ? t.open : t.closed}</span>
                     </button>
                   </div>
                 );
@@ -544,19 +617,19 @@ export function ZubrykApp() {
         {screen === "rule" && level ? (
           <section className="card">
             <div className="kicker">
-              {level.grade} клас · узровень {levelIndex + 1}
+              {level.grade} {t.grade} · {t.levelOf} {levelIndex + 1}
             </div>
             <h2 className="prompt">{level.title}</h2>
             <p className="hint">{level.ru}</p>
             <p className="hint">{level.rule}</p>
             <div className="explain">{level.example}</div>
-            <p className="hint">Правільны адказ — ад 100 да 180 ачкоў. Чым хутчэй, тым больш. Памылка — 0.</p>
+            <p className="hint">{t.pointsRule}</p>
             <div className="row">
               <button className="btn gold" onClick={() => begin(levelIndex)}>
-                Пачаць 6 заданняў
+                {t.start}
               </button>
               <button className="btn ghost" onClick={() => setScreen("home")}>
-                Назад
+                {t.back}
               </button>
             </div>
           </section>
@@ -573,8 +646,12 @@ export function ZubrykApp() {
                 })}
               </div>
               <div className="grow" />
-              <div className="timepill">{liveSec} с</div>
-              <div className="stage-name">{pointsRef.current} ачкоў</div>
+              <div className="timepill">
+                {liveSec} {t.sec}
+              </div>
+              <div className="stage-name">
+                {pointsRef.current} {t.pts}
+              </div>
             </div>
             <div className="lanterns" aria-hidden="true">
               {Array.from({ length: 8 }, (_, i) => (
@@ -586,7 +663,7 @@ export function ZubrykApp() {
                 {level.title} · {index + 1}/6
               </div>
               <div className="prompt">{item.prompt}</div>
-              <p className="hint">{item.hint ?? "Абяры адказ"}</p>
+              <p className="hint">{item.hint ?? t.choose}</p>
               <div className="choices">
                 {item.choices.map((choice, i) => {
                   const show = locked;
@@ -605,7 +682,7 @@ export function ZubrykApp() {
                   <div className="explain">{item.explain}</div>
                   <div className="row">
                     <button className="btn gold" onClick={() => nextStep()}>
-                      Далей
+                      {t.next}
                     </button>
                   </div>
                 </>
@@ -616,22 +693,21 @@ export function ZubrykApp() {
 
         {screen === "result" && level ? (
           <section className="card">
-            <div className="kicker">{passedRun ? "Узровень пройдзены" : "Яшчэ разок"}</div>
-            {isRecord && passedRun ? <div className="fest-banner">Новы рэкорд</div> : null}
+            <div className="kicker">{passedRun ? t.passed : t.retry}</div>
+            {isRecord && passedRun ? <div className="fest-banner">{t.record}</div> : null}
             <div className="score">{runPoints}</div>
             <p className="hint">
-              {correct} з {queue.length} правільна · {clock(runMs)} разам ·{" "}
-              {queue.length ? (runMs / queue.length / 1000).toFixed(1) : "0"} с на пытанне
+              {correct} {courseId === "ru" ? "из" : "з"} {queue.length} {t.summary} · {clock(runMs)}{" "}
+              {courseId === "ru" ? "всего" : "разам"} · {queue.length ? (runMs / queue.length / 1000).toFixed(1) : "0"}{" "}
+              {t.sec} {courseId === "ru" ? "на вопрос" : "на пытанне"}
             </p>
             <p className="hint">
-              {passedRun && myPlace >= 0
-                ? `Месца ў рэйтынгу: ${myPlace + 1} з ${board.length}.`
-                : `Трэба ${NEED_CORRECT} правільных з 6, каб адкрыць наступны ўзровень.`}
+              {passedRun && myPlace >= 0 ? `${t.place}: ${myPlace + 1} / ${board.length}.` : t.need}
             </p>
             <div className="times">
               {stamps.map((stamp, i) => (
                 <span key={i} className={stamp.ok ? "pill ok" : "pill bad"}>
-                  {i + 1}. {(stamp.ms / 1000).toFixed(1)} с
+                  {i + 1}. {(stamp.ms / 1000).toFixed(1)} {t.sec}
                 </span>
               ))}
             </div>
@@ -644,13 +720,13 @@ export function ZubrykApp() {
               </div>
             ))}
             <div className="row">
-              {passedRun && levelIndex + 1 < LEVELS.length ? (
+              {passedRun && levelIndex + 1 < pack.levels.length ? (
                 <button className="btn gold" onClick={() => begin(levelIndex + 1)}>
-                  Наступны ўзровень
+                  {t.nextLevel}
                 </button>
               ) : (
                 <button className="btn gold" onClick={() => begin(levelIndex)}>
-                  Яшчэ раз
+                  {t.again}
                 </button>
               )}
               <button
@@ -662,7 +738,7 @@ export function ZubrykApp() {
                   setPose("idle");
                 }}
               >
-                Да ўзроўняў
+                {t.toLevels}
               </button>
             </div>
           </section>
@@ -670,12 +746,10 @@ export function ZubrykApp() {
 
         {screen === "board" ? (
           <section className="card">
-            <div className="kicker">Рэйтынг</div>
-            <h2 className="prompt">Хто вышэй</h2>
-            <p className="hint">
-              Ачкі — сума лепшых спроб. Хуткі правільны адказ даражэйшы. Пры роўных ачках вышэй той, у каго меншы час на пытанне.
-            </p>
-            {board.length === 0 ? <p className="hint">Пакуль нікога няма. Напішы імя і прайдзі ўзровень.</p> : null}
+            <div className="kicker">{t.board}</div>
+            <h2 className="prompt">{t.who}</h2>
+            <p className="hint">{t.boardHint}</p>
+            {board.length === 0 ? <p className="hint">{t.empty}</p> : null}
             <div className="stack">
               {board.map((row, i) => (
                 <div key={row.player.name} className={row.player.name === current ? "board-row me" : "board-row"}>
@@ -683,8 +757,8 @@ export function ZubrykApp() {
                   <span className="level-copy">
                     <b>{row.player.name}</b>
                     <span className="ru">
-                      {row.correct} правільна · {row.avg ? `${(row.avg / 1000).toFixed(1)} с` : "—"} · {clock(row.ms)} ·{" "}
-                      {row.passed} узр.
+                      {row.correct} {t.right} · {row.avg ? `${(row.avg / 1000).toFixed(1)} ${t.sec}` : "—"} · {clock(row.ms)} ·{" "}
+                      {row.passed} {t.lvl}
                     </span>
                   </span>
                   <span className="best">{row.points}</span>
@@ -693,7 +767,7 @@ export function ZubrykApp() {
             </div>
             <div className="row">
               <button className="btn gold" onClick={() => setScreen(current ? "home" : "name")}>
-                Назад
+                {t.back}
               </button>
             </div>
           </section>
@@ -703,16 +777,15 @@ export function ZubrykApp() {
       {help ? (
         <div className="sheet-back" onClick={() => setHelp(false)}>
           <div className="sheet" onClick={(event) => event.stopPropagation()}>
-            <h2>Як гуляць</h2>
-            <p>Узроўні ідуць па чарзе: з 2 класа да 6. Наступны адкрываецца, калі ў папярэднім 5 правільных з 6.</p>
+            <h2>{t.helpTitle}</h2>
+            <p>{t.helpP}</p>
             <ul>
-              <li>Правільны адказ: 100 ачкоў плюс хуткасць, да 180.</li>
-              <li>Памылка: 0 ачкоў. Час усё адно запісваецца.</li>
-              <li>У рэйтынгу лічыцца лепшая спроба кожнага ўзроўню: ачкі, час на пытанне і агульны час.</li>
-              <li>На камп’ютары — клавішы 1, 2, 3.</li>
+              {t.help.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
             </ul>
             <button className="btn gold" onClick={() => setHelp(false)}>
-              Зразумела
+              {t.ok}
             </button>
           </div>
         </div>

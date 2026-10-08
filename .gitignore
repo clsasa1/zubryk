@@ -4,6 +4,8 @@ node_modules
 .tanstack
 screenshots
 artifacts
+attachments
+.node_modules.lock
 dist
 .output
 *.log

@@ -144,7 +144,7 @@
   z-index: 3;
   width: min(920px, 100%);
   margin: 0 auto;
-  padding: 2.4rem 1rem 13rem;
+  padding: 2.4rem 1rem 18rem;
 }
 
 .frame.kick { animation: kick 0.42s cubic-bezier(0.2, 0.8, 0.2, 1); }
@@ -442,8 +442,8 @@
 }
 
 .dock img {
-  width: 9.5rem;
-  height: 12.5rem;
+  width: 11rem;
+  height: 16rem;
   object-fit: contain;
   object-position: center bottom;
   filter: drop-shadow(0 10px 12px color-mix(in srgb, var(--color-night) 45%, transparent));
@@ -627,7 +627,7 @@
 @media (min-width: 720px) {
   .grid { grid-template-columns: 1fr 1fr; }
   .prompt { font-size: 2.2rem; }
-  .dock img { width: 12rem; height: 15rem; }
+  .dock img { width: 14rem; height: 20rem; }
 }
 
 .shell.still .mascot,
