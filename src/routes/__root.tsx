@@ -11,7 +11,7 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: APP_NAME },
-      { name: "description", content: "Граматычны дрыл для 3 класа: кожны верны адказ падымае свята." },
+      { name: "description", content: "Узроўні беларускай мовы з 2 да 6 класа: хуткасць, ачкі і рэйтынг." },
       { name: "theme-color", content: "#1B1433" },
     ],
     links: [

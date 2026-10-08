@@ -647,3 +647,90 @@
   .float,
   .flash { animation: none !important; }
 }
+
+.note {
+  margin: 0.7rem 0 0;
+  font-weight: 800;
+  color: var(--color-gold-2);
+}
+
+.path { margin-top: 0.9rem; display: grid; gap: 0.45rem; }
+
+.grade {
+  margin: 0.85rem 0 0.35rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-gold-2);
+  font-size: 0.78rem;
+}
+
+.level,
+.board-row {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  color: var(--color-ink);
+  background: var(--color-cream);
+  border-radius: 1rem;
+  padding: 0.65rem 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--color-night) 28%, transparent);
+}
+
+.level.now { box-shadow: 0 0 0 3px var(--color-gold), 0 10px 24px color-mix(in srgb, var(--color-night) 28%, transparent); }
+.level.locked { opacity: 0.55; }
+.level.done .num { background: var(--color-gold); }
+
+.num {
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 0.7rem;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  background: var(--color-gold-2);
+  flex: none;
+}
+
+.level-copy { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.level-copy b { font-size: 1.05rem; }
+.level .best, .board-row .best { margin-left: auto; font-weight: 900; }
+
+.stack { display: grid; gap: 0.45rem; margin-top: 0.8rem; }
+
+.namebox input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 1rem;
+  padding: 0.85rem 1rem;
+  font: inherit;
+  font-weight: 800;
+  font-size: 1.25rem;
+  background: white;
+  color: var(--color-ink);
+}
+
+.timepill {
+  font-weight: 900;
+  background: color-mix(in srgb, var(--color-cream) 16%, transparent);
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+}
+
+.times { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.6rem; }
+.pill {
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+  font-weight: 800;
+  font-size: 0.85rem;
+  background: white;
+}
+.pill.ok { background: var(--color-gold-2); }
+.pill.bad { background: #ffe8e4; }
+
+.board-row.me { box-shadow: 0 0 0 3px var(--color-gold); }
+
