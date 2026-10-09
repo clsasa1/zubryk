@@ -13,29 +13,35 @@ export type Player = {
 export const NEED_CORRECT = 5;
 export const LEVEL_LEN = 6;
 
+/** Сколько верных ответов нужно, чтобы пройти уровень длиной len (та же доля, что 5 из 6). */
+export function needCorrect(len: number): number {
+  return Math.max(1, Math.round((len * NEED_CORRECT) / LEVEL_LEN));
+}
+
 export function pointsFor(ms: number): number {
   const sec = ms / 1000;
   const speed = Math.max(0, Math.round(80 - sec * 4));
   return 100 + speed;
 }
 
-export function isPass(row: Best | undefined): boolean {
-  return !!row && row.total >= LEVEL_LEN && row.correct >= NEED_CORRECT;
+export function isPass(row: Best | undefined, len: number = LEVEL_LEN): boolean {
+  return !!row && row.total >= len && row.correct >= needCorrect(len);
 }
 
-export function totals(player: Player) {
-  const rows = Object.values(player.best);
-  const points = rows.reduce((sum, row) => sum + row.points, 0);
-  const correct = rows.reduce((sum, row) => sum + row.correct, 0);
-  const total = rows.reduce((sum, row) => sum + row.total, 0);
-  const ms = rows.reduce((sum, row) => sum + row.ms, 0);
-  const passed = rows.filter((row) => isPass(row)).length;
+/** lengths — длина каждого уровня по id; нужна, потому что в уровне разное число заданий. */
+export function totals(player: Player, lengths?: Record<string, number>) {
+  const rows = Object.entries(player.best);
+  const points = rows.reduce((sum, [, row]) => sum + row.points, 0);
+  const correct = rows.reduce((sum, [, row]) => sum + row.correct, 0);
+  const total = rows.reduce((sum, [, row]) => sum + row.total, 0);
+  const ms = rows.reduce((sum, [, row]) => sum + row.ms, 0);
+  const passed = rows.filter(([id, row]) => isPass(row, lengths?.[id] ?? LEVEL_LEN)).length;
   return { points, correct, total, ms, avg: total ? ms / total : 0, passed };
 }
 
-export function standings(players: Player[]) {
+export function standings(players: Player[], lengths?: Record<string, number>) {
   return players
-    .map((player) => ({ player, ...totals(player) }))
+    .map((player) => ({ player, ...totals(player, lengths) }))
     .sort((a, b) => b.points - a.points || a.avg - b.avg || b.correct - a.correct);
 }
 

@@ -6,7 +6,7 @@ export type Copy = {
   namePh: string;
   play: string;
   hello: string;
-  ladder: string;
+  ladder: (need: number, len: number) => string;
   rating: string;
   changeName: string;
   switchCourse: string;
@@ -17,7 +17,7 @@ export type Copy = {
   open: string;
   closed: string;
   pointsRule: string;
-  start: string;
+  start: (len: number) => string;
   back: string;
   choose: string;
   next: string;
@@ -28,7 +28,7 @@ export type Copy = {
   record: string;
   summary: string;
   place: string;
-  need: string;
+  need: (need: number, len: number) => string;
   nextLevel: string;
   again: string;
   toLevels: string;
@@ -39,7 +39,7 @@ export type Copy = {
   right: string;
   lvl: string;
   helpTitle: string;
-  helpP: string;
+  helpP: (need: number, len: number) => string;
   help: [string, string, string, string];
   ok: string;
   go: string;
@@ -61,7 +61,8 @@ export const BE: Copy = {
   namePh: "Імя",
   play: "Гуляць",
   hello: "спачатку лёгкае, потым цяжэйшае.",
-  ladder: "З 2 класа да 6. Хуткі правільны адказ дае больш ачкоў. Каб адкрыць наступны ўзровень, трэба 5 з 6.",
+  ladder: (need, len) =>
+    `З 2 класа да 6. Хуткі правільны адказ дае больш ачкоў. Каб адкрыць наступны ўзровень, трэба ${need} з ${len}.`,
   rating: "Рэйтынг",
   changeName: "Змяніць імя",
   switchCourse: "Іншы прадмет",
@@ -72,7 +73,7 @@ export const BE: Copy = {
   open: "адкрыта",
   closed: "закрыта",
   pointsRule: "Правільны адказ — ад 100 да 180 ачкоў. Чым хутчэй, тым больш. Памылка — 0.",
-  start: "Пачаць 6 заданняў",
+  start: (len) => `Пачаць ${len} заданняў`,
   back: "Назад",
   choose: "Абяры адказ",
   next: "Далей",
@@ -83,7 +84,7 @@ export const BE: Copy = {
   record: "Новы рэкорд",
   summary: "правільна",
   place: "Месца ў рэйтынгу",
-  need: "Трэба 5 правільных з 6, каб адкрыць наступны ўзровень.",
+  need: (need, len) => `Трэба ${need} правільных з ${len}, каб адкрыць наступны ўзровень.`,
   nextLevel: "Наступны ўзровень",
   again: "Яшчэ раз",
   toLevels: "Да ўзроўняў",
@@ -95,7 +96,8 @@ export const BE: Copy = {
   right: "правільна",
   lvl: "узр.",
   helpTitle: "Як гуляць",
-  helpP: "Узроўні ідуць па чарзе: з 2 класа да 6. Наступны адкрываецца, калі ў папярэднім 5 правільных з 6.",
+  helpP: (need, len) =>
+    `Узроўні ідуць па чарзе: з 2 класа да 6. Наступны адкрываецца, калі ў папярэднім ${need} правільных з ${len}.`,
   help: [
     "Правільны адказ: 100 ачкоў плюс хуткасць, да 180.",
     "Памылка: 0 ачкоў. Час усё адно запісваецца.",
@@ -122,7 +124,8 @@ export const RU: Copy = {
   namePh: "Имя",
   play: "Играть",
   hello: "сначала легко, потом сложнее.",
-  ladder: "Со 2 класса до 6. Быстрый правильный ответ даёт больше очков. Чтобы открыть следующий уровень, нужно 5 из 6.",
+  ladder: (need, len) =>
+    `Со 2 класса до 6. Быстрый правильный ответ даёт больше очков. Чтобы открыть следующий уровень, нужно ${need} из ${len}.`,
   rating: "Рейтинг",
   changeName: "Сменить имя",
   switchCourse: "Другой предмет",
@@ -133,7 +136,7 @@ export const RU: Copy = {
   open: "открыт",
   closed: "закрыт",
   pointsRule: "Правильный ответ — от 100 до 180 очков. Чем быстрее, тем больше. Ошибка — 0.",
-  start: "Начать 6 заданий",
+  start: (len) => `Начать ${len} заданий`,
   back: "Назад",
   choose: "Выбери ответ",
   next: "Дальше",
@@ -144,7 +147,7 @@ export const RU: Copy = {
   record: "Новый рекорд",
   summary: "правильно",
   place: "Место в рейтинге",
-  need: "Нужно 5 правильных из 6, чтобы открыть следующий уровень.",
+  need: (need, len) => `Нужно ${need} правильных из ${len}, чтобы открыть следующий уровень.`,
   nextLevel: "Следующий уровень",
   again: "Ещё раз",
   toLevels: "К уровням",
@@ -156,7 +159,8 @@ export const RU: Copy = {
   right: "правильно",
   lvl: "ур.",
   helpTitle: "Как играть",
-  helpP: "Уровни идут по очереди: со 2 класса до 6. Следующий открывается, когда в предыдущем 5 правильных из 6.",
+  helpP: (need, len) =>
+    `Уровни идут по очереди: со 2 класса до 6. Следующий открывается, когда в предыдущем ${need} правильных из ${len}.`,
   help: [
     "Правильный ответ: 100 очков плюс скорость, до 180.",
     "Ошибка: 0 очков. Время всё равно записывается.",

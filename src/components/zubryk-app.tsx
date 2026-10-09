@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleHelp, Sparkles, Trophy, Volume2, VolumeX } from "lucide-react";
 import { fest } from "@/game/audio";
 import { LEVELS, PRAISE, STAGES, shuffle, type Item, type Level } from "@/game/content";
@@ -8,12 +8,13 @@ import {
   better,
   clock,
   isPass,
+  needCorrect,
+  LEVEL_LEN,
   pointsFor,
   standings,
   totals,
   type Best,
   type Player,
-  NEED_CORRECT,
 } from "@/game/score";
 
 type Screen = "pick" | "name" | "home" | "rule" | "play" | "result" | "board";
@@ -57,7 +58,7 @@ function openCount(player: Player | undefined, levels: Level[]): number {
   if (!player) return 1;
   let count = 1;
   for (const level of levels) {
-    if (!isPass(player.best[level.id])) break;
+    if (!isPass(player.best[level.id], level.items.length)) break;
     count += 1;
   }
   return Math.min(count, levels.length);
@@ -114,7 +115,15 @@ export function ZubrykApp() {
   const t: Copy = screen === "pick" ? RU : pack.t;
   const unlocked = openCount(player, pack.levels);
   const level: Level | undefined = pack.levels[levelIndex];
-  const board = standings(players);
+  // Длина уровней разная, поэтому рейтинг и «сколько нужно для прохода» считаем по факту.
+  const levelLens = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const item of pack.levels) map[item.id] = item.items.length;
+    return map;
+  }, [pack.levels]);
+  const firstLen = pack.levels[0]?.items.length ?? LEVEL_LEN;
+  const firstNeed = needCorrect(firstLen);
+  const board = standings(players, levelLens);
   const myPlace = board.findIndex((row) => row.player.name === current);
 
   function selectCourse(id: CourseId) {
@@ -123,7 +132,9 @@ export function ZubrykApp() {
     setPlayers(save.players);
     setCurrent(save.current);
     setNote("");
-    setScreen(save.current && save.players.some((item) => item.name === save.current) ? "home" : "name");
+    setScreen(
+      save.current && save.players.some((item) => item.name === save.current) ? "home" : "name",
+    );
     localStorage.setItem(COURSE_KEY, id);
     document.documentElement.lang = id === "ru" ? "ru" : "be";
     fest.ensure();
@@ -138,12 +149,16 @@ export function ZubrykApp() {
       setCourseId(id);
       setPlayers(save.players);
       setCurrent(save.current);
-      if (save.current && save.players.some((item) => item.name === save.current)) setScreen("home");
+      if (save.current && save.players.some((item) => item.name === save.current))
+        setScreen("home");
       else setScreen("name");
       document.documentElement.lang = id === "ru" ? "ru" : "be";
     }
     try {
-      const prefs = JSON.parse(localStorage.getItem(PREF) || "{}") as { sound?: boolean; motion?: boolean };
+      const prefs = JSON.parse(localStorage.getItem(PREF) || "{}") as {
+        sound?: boolean;
+        motion?: boolean;
+      };
       if (typeof prefs.sound === "boolean") setSound(prefs.sound);
       if (typeof prefs.motion === "boolean") setMotion(prefs.motion);
     } catch {
@@ -180,7 +195,11 @@ export function ZubrykApp() {
     const tick = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       bits.current = bits.current.filter((bit) => bit.life > 0);
-      if (motionRef.current && bits.current.length < 28 + hypeRef.current * 4 && Math.random() < 0.35) {
+      if (
+        motionRef.current &&
+        bits.current.length < 28 + hypeRef.current * 4 &&
+        Math.random() < 0.35
+      ) {
         bits.current.push({
           x: Math.random() * canvas.width,
           y: canvas.height + 8,
@@ -272,7 +291,9 @@ export function ZubrykApp() {
       return;
     }
     setNote("");
-    setPlayers((list) => (list.some((item) => item.name === clean) ? list : [...list, { name: clean, best: {} }]));
+    setPlayers((list) =>
+      list.some((item) => item.name === clean) ? list : [...list, { name: clean, best: {} }],
+    );
     setCurrent(clean);
     setDraft("");
     setScreen("home");
@@ -367,7 +388,7 @@ export function ZubrykApp() {
     const taken = stampsRef.current;
     const ms = taken.reduce((sum, stamp) => sum + stamp.ms, 0);
     const row: Best = { points: pts, correct: hits, total: queue.length, ms };
-    const okRun = hits >= NEED_CORRECT;
+    const okRun = isPass(row, queue.length);
     setCorrect(hits);
     setRunPoints(pts);
     setStamps(taken);
@@ -410,7 +431,7 @@ export function ZubrykApp() {
   const item = queue[index];
   const liveSec = Math.max(0, Math.floor((nowMs - startedRef.current) / 1000));
   const runMs = stamps.reduce((sum, stamp) => sum + stamp.ms, 0);
-  const mine = player ? totals(player) : null;
+  const mine = player ? totals(player, levelLens) : null;
 
   return (
     <div className={motion ? "shell" : "shell still"} data-hype={String(hype)}>
@@ -428,7 +449,15 @@ export function ZubrykApp() {
         <img
           className={
             "mascot " +
-            (pose === "cheer" ? "pop" : pose === "dance" ? "dance" : pose === "oops" ? "oops" : motion ? "bob" : "")
+            (pose === "cheer"
+              ? "pop"
+              : pose === "dance"
+                ? "dance"
+                : pose === "oops"
+                  ? "oops"
+                  : motion
+                    ? "bob"
+                    : "")
           }
           src={screen === "result" && passedRun ? "/art/dance.png" : `/art/${pose}.png`}
           alt="Дима"
@@ -475,7 +504,12 @@ export function ZubrykApp() {
           >
             {sound ? <Volume2 size={20} /> : <VolumeX size={20} />}
           </button>
-          <button className="icon" aria-pressed={motion} aria-label={t.motion} onClick={() => setMotion((value) => !value)}>
+          <button
+            className="icon"
+            aria-pressed={motion}
+            aria-label={t.motion}
+            onClick={() => setMotion((value) => !value)}
+          >
             <Sparkles size={20} />
           </button>
           <button className="icon" aria-label={t.how} onClick={() => setHelp(true)}>
@@ -489,7 +523,9 @@ export function ZubrykApp() {
           <section className="card">
             <div className="kicker">Зубрик</div>
             <h2 className="prompt">Что тренируем?</h2>
-            <p className="hint">Одинаковая игра: уровни со 2 по 6 класс, очки за скорость и рейтинг.</p>
+            <p className="hint">
+              Одинаковая игра: уровни со 2 по 6 класс, очки за скорость и рейтинг.
+            </p>
             <div className="stack">
               <button className="level" onClick={() => selectCourse("be")}>
                 <span className="num">Б</span>
@@ -539,7 +575,7 @@ export function ZubrykApp() {
                   <button key={item.name} className="level" onClick={() => choosePlayer(item.name)}>
                     <b>{item.name}</b>
                     <span className="best">
-                      {totals(item).points} {t.pts}
+                      {totals(item, levelLens).points} {t.pts}
                     </span>
                   </button>
                 ))}
@@ -559,7 +595,7 @@ export function ZubrykApp() {
               <strong>
                 {current}, {t.hello}
               </strong>
-              <p>{t.ladder}</p>
+              <p>{t.ladder(firstNeed, firstLen)}</p>
               <div className="row">
                 <button className="btn gold" onClick={() => setScreen("board")}>
                   {t.rating}
@@ -577,7 +613,7 @@ export function ZubrykApp() {
               {pack.levels.map((item, i) => {
                 const showHead = i === 0 || item.grade !== pack.levels[i - 1]?.grade;
                 const best = player?.best[item.id];
-                const done = isPass(best);
+                const done = isPass(best, item.items.length);
                 const open = i < unlocked;
                 const cls = done ? "level done" : open ? "level now" : "level locked";
                 return (
@@ -605,7 +641,9 @@ export function ZubrykApp() {
                         <b>{item.title}</b>
                         <span className="ru">{item.ru}</span>
                       </span>
-                      <span className="best">{done ? `${best?.points ?? 0}` : open ? t.open : t.closed}</span>
+                      <span className="best">
+                        {done ? `${best?.points ?? 0}` : open ? t.open : t.closed}
+                      </span>
                     </button>
                   </div>
                 );
@@ -626,7 +664,7 @@ export function ZubrykApp() {
             <p className="hint">{t.pointsRule}</p>
             <div className="row">
               <button className="btn gold" onClick={() => begin(levelIndex)}>
-                {t.start}
+                {t.start(level ? level.items.length : firstLen)}
               </button>
               <button className="btn ghost" onClick={() => setScreen("home")}>
                 {t.back}
@@ -660,7 +698,7 @@ export function ZubrykApp() {
             </div>
             <div className="card">
               <div className="kicker">
-                {level.title} · {index + 1}/6
+                {level.title} · {index + 1}/{queue.length}
               </div>
               <div className="prompt">{item.prompt}</div>
               <p className="hint">{item.hint ?? t.choose}</p>
@@ -668,9 +706,18 @@ export function ZubrykApp() {
                 {item.choices.map((choice, i) => {
                   const show = locked;
                   const cls =
-                    show && i === item.answer ? "choice correct" : show && i === picked ? "choice wrong" : "choice";
+                    show && i === item.answer
+                      ? "choice correct"
+                      : show && i === picked
+                        ? "choice wrong"
+                        : "choice";
                   return (
-                    <button key={choice} className={cls} disabled={locked} onClick={() => answer(i)}>
+                    <button
+                      key={choice}
+                      className={cls}
+                      disabled={locked}
+                      onClick={() => answer(i)}
+                    >
                       <span className="n">{i + 1}</span>
                       {choice}
                     </button>
@@ -698,11 +745,14 @@ export function ZubrykApp() {
             <div className="score">{runPoints}</div>
             <p className="hint">
               {correct} {courseId === "ru" ? "из" : "з"} {queue.length} {t.summary} · {clock(runMs)}{" "}
-              {courseId === "ru" ? "всего" : "разам"} · {queue.length ? (runMs / queue.length / 1000).toFixed(1) : "0"}{" "}
-              {t.sec} {courseId === "ru" ? "на вопрос" : "на пытанне"}
+              {courseId === "ru" ? "всего" : "разам"} ·{" "}
+              {queue.length ? (runMs / queue.length / 1000).toFixed(1) : "0"} {t.sec}{" "}
+              {courseId === "ru" ? "на вопрос" : "на пытанне"}
             </p>
             <p className="hint">
-              {passedRun && myPlace >= 0 ? `${t.place}: ${myPlace + 1} / ${board.length}.` : t.need}
+              {passedRun && myPlace >= 0
+                ? `${t.place}: ${myPlace + 1} / ${board.length}.`
+                : t.need(needCorrect(queue.length), queue.length)}
             </p>
             <div className="times">
               {stamps.map((stamp, i) => (
@@ -752,13 +802,17 @@ export function ZubrykApp() {
             {board.length === 0 ? <p className="hint">{t.empty}</p> : null}
             <div className="stack">
               {board.map((row, i) => (
-                <div key={row.player.name} className={row.player.name === current ? "board-row me" : "board-row"}>
+                <div
+                  key={row.player.name}
+                  className={row.player.name === current ? "board-row me" : "board-row"}
+                >
                   <span className="num">{i + 1}</span>
                   <span className="level-copy">
                     <b>{row.player.name}</b>
                     <span className="ru">
-                      {row.correct} {t.right} · {row.avg ? `${(row.avg / 1000).toFixed(1)} ${t.sec}` : "—"} · {clock(row.ms)} ·{" "}
-                      {row.passed} {t.lvl}
+                      {row.correct} {t.right} ·{" "}
+                      {row.avg ? `${(row.avg / 1000).toFixed(1)} ${t.sec}` : "—"} · {clock(row.ms)}{" "}
+                      · {row.passed} {t.lvl}
                     </span>
                   </span>
                   <span className="best">{row.points}</span>
@@ -778,7 +832,7 @@ export function ZubrykApp() {
         <div className="sheet-back" onClick={() => setHelp(false)}>
           <div className="sheet" onClick={(event) => event.stopPropagation()}>
             <h2>{t.helpTitle}</h2>
-            <p>{t.helpP}</p>
+            <p>{t.helpP(firstNeed, firstLen)}</p>
             <ul>
               {t.help.map((line) => (
                 <li key={line}>{line}</li>
