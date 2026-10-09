@@ -1006,3 +1006,133 @@
 .board-row.me {
   box-shadow: 0 0 0 3px var(--color-gold);
 }
+
+/* ── Прызы ─────────────────────────────────────────────── */
+.prize-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0.2rem 0 0.9rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 1rem;
+  background: var(--color-gold-2);
+  font-weight: 900;
+  font-size: 1.15rem;
+}
+.prize-total .ru {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.prizes {
+  display: grid;
+  gap: 0.55rem;
+  margin-bottom: 0.9rem;
+}
+
+.prize {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: 1rem;
+  background: white;
+  border: 2px solid transparent;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--color-night) 22%, transparent);
+}
+.prize.got {
+  border-color: var(--color-gold);
+  background: color-mix(in srgb, var(--color-gold-2) 55%, white);
+}
+
+.prize-badge {
+  flex: none;
+  width: 3.6rem;
+  height: 3.6rem;
+  border-radius: 1.1rem;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0;
+  background: #eceaf5;
+  color: var(--color-muted);
+  filter: grayscale(0.75);
+}
+.prize-badge b {
+  font-size: 1.15rem;
+  line-height: 1.1;
+}
+.prize-badge small {
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  opacity: 0.8;
+}
+.prize.got .prize-badge {
+  filter: none;
+  color: var(--color-ink);
+}
+.prize-badge[data-tier="small"] {
+  background: color-mix(in srgb, var(--color-flower) 22%, white);
+}
+.prize-badge[data-tier="medium"] {
+  background: color-mix(in srgb, var(--color-gold) 32%, white);
+}
+.prize-badge[data-tier="large"] {
+  background: color-mix(in srgb, var(--color-scarf) 20%, var(--color-gold) 30%);
+}
+.prize-badge.big {
+  width: 5.4rem;
+  height: 5.4rem;
+  border-radius: 1.6rem;
+  margin: 0 auto 0.6rem;
+}
+.prize-badge.big b {
+  font-size: 1.8rem;
+}
+
+.prize-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  flex: 1;
+}
+.prize-copy b {
+  font-size: 1rem;
+}
+.prize-copy .ru {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--color-muted);
+}
+.prize.got .prize-copy .ru {
+  color: var(--color-scarf);
+}
+
+.prize-bar {
+  display: block;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: #eceaf5;
+  overflow: hidden;
+  margin-top: 0.2rem;
+}
+.prize-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-gold);
+  transition: width 0.5s ease;
+}
+
+.sheet.prize-win {
+  text-align: center;
+}
+.sheet.prize-win h2 {
+  margin: 0.2rem 0 0.3rem;
+}

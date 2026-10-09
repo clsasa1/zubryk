@@ -1,9 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CircleHelp, Sparkles, Trophy, Volume2, VolumeX } from "lucide-react";
+import { CircleHelp, Gift, Sparkles, Trophy, Volume2, VolumeX } from "lucide-react";
 import { fest } from "@/game/audio";
 import { LEVELS, PRAISE, STAGES, shuffle, type Item, type Level } from "@/game/content";
 import { RU_LEVELS, RU_PRAISE, RU_STAGES } from "@/game/content-ru";
 import { BE, RU, type Copy } from "@/game/copy";
+import {
+  buildPrizes,
+  prizeProgress,
+  prizesEarnedTotal,
+  prizesTotal,
+  type Prize,
+} from "@/game/prizes";
 import {
   better,
   clock,
@@ -17,7 +24,7 @@ import {
   type Player,
 } from "@/game/score";
 
-type Screen = "pick" | "name" | "home" | "rule" | "play" | "result" | "board";
+type Screen = "pick" | "name" | "home" | "rule" | "play" | "result" | "board" | "prizes";
 type Stamp = { ms: number; ok: boolean };
 type Miss = { index: number; item: Item };
 type Bit = {
@@ -93,6 +100,7 @@ export function ZubrykApp() {
   const [isRecord, setIsRecord] = useState(false);
   const [passedRun, setPassedRun] = useState(false);
   const [nowMs, setNowMs] = useState(0);
+  const [newPrize, setNewPrize] = useState<Prize | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const bits = useRef<Bit[]>([]);
   const floatId = useRef(0);
@@ -125,6 +133,28 @@ export function ZubrykApp() {
   const firstNeed = needCorrect(firstLen);
   const board = standings(players, levelLens);
   const myPlace = board.findIndex((row) => row.player.name === current);
+  // Прызы вычисляются из best[] — отдельного хранилища не нужно, прогресс уже сохранён.
+  const prizeList = useMemo(() => buildPrizes(pack.levels), [pack.levels]);
+  const bestOf = player?.best ?? {};
+  const earnedSum = prizesEarnedTotal(prizeList, bestOf, levelLens);
+  const allSum = prizesTotal(prizeList);
+  // Какие призы уже были заработаны — для праздника в момент получения.
+  const earnedIds = useMemo(
+    () =>
+      new Set(
+        prizeList
+          .filter((prize) => prizeProgress(prize, bestOf, levelLens).earned)
+          .map((prize) => prize.id),
+      ),
+    [prizeList, bestOf, levelLens],
+  );
+  const earnedIdsRef = useRef<Set<string>>(new Set());
+  // Пры загруззе гульца адзначаем ужо заработаныя прызы, каб старыя не
+  // абвяшчаліся «новымі» пры наступнай перамоге.
+  useEffect(() => {
+    earnedIdsRef.current = earnedIds;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current, courseId]);
 
   function selectCourse(id: CourseId) {
     const save = loadSave(SAVE_KEYS[id]);
@@ -402,15 +432,28 @@ export function ZubrykApp() {
       setHype(8);
     }
     if (level && current) {
+      // Складываем новую спробу ў той жа лепшы стан, які захаваецца ў localStorage,
+      // і толькі пасля гэтага лічым, якія прызы адкрыліся менавіта цяпер.
+      const before = player?.best ?? {};
+      const prev = before[level.id];
+      const nextBest = { ...before };
+      if (better(row, prev)) nextBest[level.id] = row;
+      const nowEarned = new Set(
+        prizeList
+          .filter((prize) => prizeProgress(prize, nextBest, levelLens).earned)
+          .map((prize) => prize.id),
+      );
+      const fresh = prizeList.find(
+        (prize) => nowEarned.has(prize.id) && !earnedIdsRef.current.has(prize.id),
+      );
+      earnedIdsRef.current = nowEarned;
+      if (fresh) setNewPrize(fresh);
       setPlayers((list) =>
         list.map((item) => {
           if (item.name !== current) return item;
-          const prev = item.best[level.id];
-          if (!better(row, prev)) return item;
-          return { ...item, best: { ...item.best, [level.id]: row } };
+          return { ...item, best: nextBest };
         }),
       );
-      const prev = player?.best[level.id];
       setIsRecord(better(row, prev));
     }
     setScreen("result");
@@ -600,6 +643,10 @@ export function ZubrykApp() {
                 <button className="btn gold" onClick={() => setScreen("board")}>
                   {t.rating}
                   {mine ? ` · ${mine.points}` : ""}
+                </button>
+                <button className="btn ghost" onClick={() => setScreen("prizes")}>
+                  {t.prizes}
+                  {earnedSum > 0 ? ` · ${earnedSum} ${t.rubles}` : ""}
                 </button>
                 <button className="btn ghost" onClick={() => setScreen("name")}>
                   {t.changeName}
@@ -826,7 +873,80 @@ export function ZubrykApp() {
             </div>
           </section>
         ) : null}
+        {screen === "prizes" ? (
+          <section className="card">
+            <div className="kicker">{t.prizes}</div>
+            <h2 className="prompt">{t.prizesWho}</h2>
+            <p className="hint">{t.prizesHint}</p>
+            <div className="prize-total">
+              <span>
+                {earnedSum} {t.rubles}
+              </span>
+              <span className="ru">
+                {t.prizeTotal}: {allSum} {t.rubles}
+              </span>
+            </div>
+            <div className="prizes">
+              {prizeList.map((prize) => {
+                const prog = prizeProgress(prize, bestOf, levelLens);
+                return (
+                  <div key={prize.id} className={prog.earned ? "prize got" : "prize"}>
+                    <div className="prize-badge" data-tier={prize.tier}>
+                      <Gift size={20} />
+                      <b>{prize.amount}</b>
+                      <small>{t.rubles}</small>
+                    </div>
+                    <div className="prize-copy">
+                      <b>
+                        {prize.kind === "first" ? t.prizeFirst : t.prizeGrade(prize.grade ?? 0)}
+                      </b>
+                      <span className="ru">
+                        {prog.earned ? t.prizeEarned : t.prizeProgress(prog.done, prog.total)}
+                      </span>
+                      <span className="prize-bar">
+                        <i style={{ width: `${prog.pct}%` }} />
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="row">
+              <button className="btn gold" onClick={() => setScreen("home")}>
+                {t.back}
+              </button>
+            </div>
+          </section>
+        ) : null}
       </div>
+
+      {newPrize ? (
+        <div className="sheet-back" onClick={() => setNewPrize(null)}>
+          <div className="sheet prize-win" onClick={(event) => event.stopPropagation()}>
+            <div className="prize-badge big" data-tier={newPrize.tier}>
+              <Gift size={28} />
+              <b>{newPrize.amount}</b>
+              <small>{t.rubles}</small>
+            </div>
+            <h2>{t.prizeNew}</h2>
+            <p>
+              {newPrize.kind === "first" ? t.prizeFirst : t.prizeGrade(newPrize.grade ?? 0)} —{" "}
+              {t.prizeOzon}
+            </p>
+            <div className="row">
+              <button
+                className="btn gold"
+                onClick={() => {
+                  setNewPrize(null);
+                  setScreen("prizes");
+                }}
+              >
+                {t.prizes}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {help ? (
         <div className="sheet-back" onClick={() => setHelp(false)}>

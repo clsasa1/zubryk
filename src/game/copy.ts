@@ -47,6 +47,18 @@ export type Copy = {
   dance: string;
   more: string;
   fest: string;
+  prizes: string;
+  prizesWho: string;
+  prizesHint: string;
+  prizeFirst: string;
+  prizeGrade: (grade: number) => string;
+  prizeEarned: string;
+  prizeLocked: string;
+  prizeProgress: (done: number, total: number) => string;
+  prizeTotal: string;
+  prizeNew: string;
+  prizeOzon: string;
+  rubles: string;
   how: string;
   sound: string;
   motion: string;
@@ -106,6 +118,18 @@ export const BE: Copy = {
   ],
   ok: "Зразумела",
   go: "Ну, пачалі!",
+  prizes: "Прызы",
+  prizesWho: "Прызы за прайдзеныя ўзроўні",
+  prizesHint: "Прыз адкрываецца, калі прайдзены ўсе ўзроўні яго этапу. Кожны наступны — большы.",
+  prizeFirst: "Першы тур",
+  prizeGrade: (grade) => `${grade} клас`,
+  prizeEarned: "Атрыманы",
+  prizeLocked: "Яшчэ не зароблены",
+  prizeProgress: (done, total) => `${done} / ${total} узроўняў`,
+  prizeTotal: "Усяго можна",
+  prizeNew: "Новы прыз!",
+  prizeOzon: "Прыз з Ozon",
+  rubles: "бел. руб.",
   almost: "Амаль! Глядзі.",
   dance: "Танцуем!",
   more: "Яшчэ!",
@@ -169,6 +193,18 @@ export const RU: Copy = {
   ],
   ok: "Понятно",
   go: "Ну, поехали!",
+  prizes: "Призы",
+  prizesWho: "Призы за пройденные уровни",
+  prizesHint: "Приз открывается, когда пройдены все уровни его этапа. Каждый следующий — больше.",
+  prizeFirst: "Первый тур",
+  prizeGrade: (grade) => `${grade} класс`,
+  prizeEarned: "Получен",
+  prizeLocked: "Ещё не заработан",
+  prizeProgress: (done, total) => `${done} / ${total} уровней`,
+  prizeTotal: "Всего можно",
+  prizeNew: "Новый приз!",
+  prizeOzon: "Приз с Ozon",
+  rubles: "бел. руб.",
   almost: "Почти! Смотри.",
   dance: "Танцуем!",
   more: "Ещё!",
