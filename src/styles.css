@@ -509,8 +509,9 @@
 }
 
 .choice.wrong {
-  border-color: var(--color-scarf);
-  background: #ffe8e4;
+  /* Мягкий жёлтый вместо красного: ошибка — это подсказка, а не наказание. */
+  border-color: var(--color-gold);
+  background: #fff6e4;
 }
 
 .explain {
@@ -614,7 +615,7 @@
 }
 
 .miss b {
-  color: var(--color-scarf);
+  color: var(--color-ink);
 }
 
 .sheet-back {
@@ -1000,7 +1001,8 @@
   background: var(--color-gold-2);
 }
 .pill.bad {
-  background: #ffe8e4;
+  background: #f1eef7;
+  color: var(--color-muted);
 }
 
 .board-row.me {
@@ -1135,4 +1137,39 @@
 }
 .sheet.prize-win h2 {
   margin: 0.2rem 0 0.3rem;
+}
+
+/* ── Подсказка по кнопке: спрашивать не страшно ───────── */
+.askrow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+.askrow .hint {
+  margin-bottom: 0;
+  flex: 1;
+  min-width: 0;
+}
+.hintbtn {
+  flex: none;
+  border: 2px solid var(--color-gold);
+  background: var(--color-gold-2);
+  color: var(--color-ink);
+  border-radius: 999px;
+  padding: 0.4rem 0.8rem;
+  font-weight: 900;
+  font-size: 0.82rem;
+  min-height: 2.5rem;
+  display: inline-flex;
+  align-items: center;
+  transition: transform 0.15s ease;
+}
+.hintbtn:active {
+  transform: scale(0.94);
+}
+.hint.learn {
+  color: var(--color-flower);
+  font-weight: 900;
+  margin: 0.6rem 0 0.35rem;
 }

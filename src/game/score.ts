@@ -13,9 +13,10 @@ export type Player = {
 export const NEED_CORRECT = 5;
 export const LEVEL_LEN = 6;
 
-/** Сколько верных ответов нужно, чтобы пройти уровень длиной len (та же доля, что 5 из 6). */
+/** Сколько верных ответов нужно, чтобы пройти уровень длиной len.
+ *  Порог в половину: ребёнку нельзя проиграть из-за одной ошибки. */
 export function needCorrect(len: number): number {
-  return Math.max(1, Math.round((len * NEED_CORRECT) / LEVEL_LEN));
+  return Math.max(1, Math.ceil(len / 2));
 }
 
 export function pointsFor(ms: number): number {

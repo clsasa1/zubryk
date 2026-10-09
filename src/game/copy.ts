@@ -43,6 +43,9 @@ export type Copy = {
   help: [string, string, string, string];
   ok: string;
   go: string;
+  learnMore: string;
+  tryAgain: string;
+  hintBtn: string;
   almost: string;
   dance: string;
   more: string;
@@ -130,6 +133,9 @@ export const BE: Copy = {
   prizeNew: "Новы прыз!",
   prizeOzon: "Прыз з Ozon",
   rubles: "бел. руб.",
+  learnMore: "Ты ў гэтым разе даведаўся новага:",
+  tryAgain: "Амаль! Правільны адказ падсвэціўся. Паспрабуй яшчэ раз!",
+  hintBtn: "Падказаць",
   almost: "Амаль! Глядзі.",
   dance: "Танцуем!",
   more: "Яшчэ!",
@@ -205,6 +211,9 @@ export const RU: Copy = {
   prizeNew: "Новый приз!",
   prizeOzon: "Приз с Ozon",
   rubles: "бел. руб.",
+  learnMore: "Ты в этот раз узнал новое:",
+  tryAgain: "Почти! Правильный ответ подсвечен. Попробуй ещё раз!",
+  hintBtn: "Подсказать",
   almost: "Почти! Смотри.",
   dance: "Танцуем!",
   more: "Ещё!",

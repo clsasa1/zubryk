@@ -95,11 +95,12 @@ class FestAudio {
     if (level === 2 || level === 4 || level === 6 || level === 8) this.fanfare();
   }
 
+  // Мягкий нейтральный отклик: без удара и без нисходящего тона — такой звук
+  // читается как «попробуем ещё», а не как провал.
   wrong() {
     this.ensure();
-    this.thump(180, 0.22);
-    this.tone(233, 0.18, "triangle", 0.12, 0.05, false);
-    this.tone(175, 0.24, "sine", 0.1, 0.1, false);
+    this.tone(330, 0.16, "sine", 0.07, 0, false);
+    this.tone(392, 0.22, "sine", 0.06, 0.09, false);
   }
 
   fanfare() {
@@ -147,7 +148,14 @@ class FestAudio {
     return musicBus ? this.music : this.sfx;
   }
 
-  private tone(freq: number, dur: number, type: OscillatorType, gain: number, delay: number, musicBus = false) {
+  private tone(
+    freq: number,
+    dur: number,
+    type: OscillatorType,
+    gain: number,
+    delay: number,
+    musicBus = false,
+  ) {
     const ctx = this.ctx;
     const dest = this.dest(musicBus);
     if (!ctx || !dest || this.muted) return;

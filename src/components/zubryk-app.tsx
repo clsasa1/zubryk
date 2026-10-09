@@ -84,6 +84,8 @@ export function ZubrykApp() {
   const [hype, setHype] = useState(0);
   const [misses, setMisses] = useState<Miss[]>([]);
   const [locked, setLocked] = useState(false);
+  const [retry, setRetry] = useState(false);
+  const [hintShown, setHintShown] = useState(false);
   const [picked, setPicked] = useState<number | null>(null);
   const [pose, setPose] = useState<"idle" | "cheer" | "dance" | "oops">("idle");
   const [kick, setKick] = useState<"" | "kick" | "kick-big">("");
@@ -111,6 +113,9 @@ export function ZubrykApp() {
   const hypeRef = useRef(0);
   const motionRef = useRef(true);
   const answerRef = useRef<(choice: number) => void>(() => {});
+  // Таймер автоперехода: после неудачи игра едет дальше сама, но если ребёнок
+  // успел ответить сам — таймер отменяется в nextStep.
+  const stepTimer = useRef<number | null>(null);
   const skipSave = useRef(true);
   hypeRef.current = hype;
   motionRef.current = motion;
@@ -349,6 +354,12 @@ export function ZubrykApp() {
     setMisses([]);
     setLocked(false);
     setPicked(null);
+    setRetry(false);
+    setHintShown(false);
+    if (stepTimer.current !== null) {
+      window.clearTimeout(stepTimer.current);
+      stepTimer.current = null;
+    }
     setPose("idle");
     setSpeech(t.go);
     setScreen("play");
@@ -362,10 +373,16 @@ export function ZubrykApp() {
     fest.ensure();
     fest.tap();
     setPicked(choice);
-    setLocked(true);
-    stampsRef.current = [...stampsRef.current, { ms, ok }];
+    // Время на вопрос считается от первого нажатия; «верно» в итоге означает, что
+    // ребёнок в итоге разобрался, даже если первая попытка была неудачной.
+    const stamp: Stamp = stampsRef.current[index] ?? { ms, ok };
+    if (ok) stamp.ok = true;
+    stampsRef.current[index] = stamp;
     if (ok) {
-      const gained = pointsFor(ms);
+      setLocked(true);
+      // Успех после неудачи засчитывается, но очками вдвое меньше: ребёнок
+      // не должен чувствовать себя проигравшим из-за одной попытки.
+      const gained = retry ? Math.max(40, Math.round(pointsFor(ms) / 2)) : pointsFor(ms);
       const nextHype = Math.min(8, Math.max(hype + 1, 1));
       correctRef.current += 1;
       pointsRef.current += gained;
@@ -387,19 +404,41 @@ export function ZubrykApp() {
         setKick("");
         setSlam(null);
       }, 700);
-      window.setTimeout(() => nextStep(), 720);
-    } else {
-      fest.wrong();
-      setPose("oops");
-      setSpeech(t.almost);
-      setMisses((list) => [...list, { index, item }]);
+      window.setTimeout(() => nextStep(), 700);
+      return;
+    }
+    // Ошибка — это не наказание. Первый раз показываем верный ответ, но
+    // оставляем варианты нажимаемыми: ребёнок пробует ещё раз сам.
+    fest.wrong();
+    setMisses((list) => (list.some((m) => m.index === index) ? list : [...list, { index, item }]));
+    if (!retry) {
+      setRetry(true);
+      setSpeech(t.tryAgain);
       setKick("kick");
       window.setTimeout(() => setKick(""), 420);
+      scheduleStep(6000);
+      return;
     }
+    // Второй раз — ответ показан, но темп не теряем: едем дальше сами.
+    setLocked(true);
+    scheduleStep(1900);
   }
   answerRef.current = answer;
 
+  /** Плановая задержка до следующего вопроса: всегда сменяет предыдущий таймер. */
+  function scheduleStep(delay: number) {
+    if (stepTimer.current !== null) window.clearTimeout(stepTimer.current);
+    stepTimer.current = window.setTimeout(() => {
+      stepTimer.current = null;
+      nextStep();
+    }, delay);
+  }
+
   function nextStep() {
+    if (stepTimer.current !== null) {
+      window.clearTimeout(stepTimer.current);
+      stepTimer.current = null;
+    }
     if (index + 1 >= queue.length) {
       finish();
       return;
@@ -407,6 +446,8 @@ export function ZubrykApp() {
     setIndex((value) => value + 1);
     setLocked(false);
     setPicked(null);
+    setRetry(false);
+    setHintShown(false);
     startedRef.current = performance.now();
     setPose(hype >= 6 ? "dance" : "idle");
     setSpeech(hype >= 6 ? t.dance : t.more);
@@ -748,16 +789,27 @@ export function ZubrykApp() {
                 {level.title} · {index + 1}/{queue.length}
               </div>
               <div className="prompt">{item.prompt}</div>
-              <p className="hint">{item.hint ?? t.choose}</p>
+              <div className="askrow">
+                <p className="hint">{item.hint ?? t.choose}</p>
+                {!retry && !hintShown && item.explain ? (
+                  <button
+                    className="hintbtn"
+                    onClick={() => {
+                      setHintShown(true);
+                      fest.tap();
+                    }}
+                  >
+                    {t.hintBtn}
+                  </button>
+                ) : null}
+              </div>
+              {hintShown && !retry ? <div className="explain">{item.explain}</div> : null}
               <div className="choices">
                 {item.choices.map((choice, i) => {
-                  const show = locked;
-                  const cls =
-                    show && i === item.answer
-                      ? "choice correct"
-                      : show && i === picked
-                        ? "choice wrong"
-                        : "choice";
+                  // После первой ошибки подсвечиваем ТОЛЬКО верный ответ: на
+                  // неудачной попытке не должно быть и намёка на «помечено».
+                  const show = locked || retry;
+                  const cls = show && i === item.answer ? "choice correct" : "choice";
                   return (
                     <button
                       key={choice}
@@ -808,14 +860,19 @@ export function ZubrykApp() {
                 </span>
               ))}
             </div>
-            {misses.map((miss) => (
-              <div key={`${miss.item.id}-${miss.index}`} className="miss">
-                <b>{miss.item.prompt}</b>
-                <div>
-                  {miss.item.choices[miss.item.answer]} — {miss.item.explain}
-                </div>
-              </div>
-            ))}
+            {misses.length > 0 ? (
+              <>
+                <p className="hint learn">{t.learnMore}</p>
+                {misses.map((miss) => (
+                  <div key={`${miss.item.id}-${miss.index}`} className="miss">
+                    <b>{miss.item.prompt}</b>
+                    <div>
+                      {miss.item.choices[miss.item.answer]} — {miss.item.explain}
+                    </div>
+                  </div>
+                ))}
+              </>
+            ) : null}
             <div className="row">
               {passedRun && levelIndex + 1 < pack.levels.length ? (
                 <button className="btn gold" onClick={() => begin(levelIndex + 1)}>
