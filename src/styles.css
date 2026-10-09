@@ -589,7 +589,9 @@
   background: var(--color-gold);
 }
 .dots i.bad {
-  background: #ffb0a8;
+  /* Розовый читался как «провал». Теперь — просто отметка «здесь пришлось подумать». */
+  background: color-mix(in srgb, var(--color-cream) 52%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-cream) 30%, transparent);
 }
 
 .playhead {
@@ -1001,8 +1003,10 @@
   background: var(--color-gold-2);
 }
 .pill.bad {
+  /* Не «плохо», а «подумал дольше»: тот же светлый фон, без красного. */
   background: #f1eef7;
-  color: var(--color-muted);
+  color: var(--color-ink);
+  border: 1px solid color-mix(in srgb, var(--color-muted) 35%, transparent);
 }
 
 .board-row.me {
@@ -1172,4 +1176,23 @@
   color: var(--color-flower);
   font-weight: 900;
   margin: 0.6rem 0 0.35rem;
+}
+
+/* Панель реванша — до каталога промахов, иначе ребёнку пришлось бы
+   прокручивать пять карточек, чтобы найти кнопку. */
+.rematchbar {
+  margin: 0.9rem 0 0.2rem;
+  padding: 0.7rem;
+  border-radius: 1.1rem;
+  background: color-mix(in srgb, var(--color-gold-2) 55%, white);
+  border: 2px solid color-mix(in srgb, var(--color-gold) 45%, transparent);
+}
+
+.rematchbar .btn {
+  margin-bottom: 0.35rem;
+}
+
+.rematchbar .hint {
+  margin: 0;
+  font-size: 0.85rem;
 }

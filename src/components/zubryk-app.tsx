@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CircleHelp, Gift, Sparkles, Trophy, Volume2, VolumeX } from "lucide-react";
+import { CircleHelp, Gift, MessageCircle, Sparkles, Trophy, Volume2, VolumeX } from "lucide-react";
 import { fest } from "@/game/audio";
+import { buzz, speak, stopSpeaking } from "@/game/speech";
 import { LEVELS, PRAISE, STAGES, shuffle, type Item, type Level } from "@/game/content";
 import { RU_LEVELS, RU_PRAISE, RU_STAGES } from "@/game/content-ru";
 import { BE, RU, type Copy } from "@/game/copy";
@@ -85,9 +86,12 @@ export function ZubrykApp() {
   const [misses, setMisses] = useState<Miss[]>([]);
   const [locked, setLocked] = useState(false);
   const [retry, setRetry] = useState(false);
+  /** Реванш: играем только промахи, результат в рейтинг не пишется. */
+  const [practice, setPractice] = useState(false);
   const [hintShown, setHintShown] = useState(false);
   const [picked, setPicked] = useState<number | null>(null);
-  const [pose, setPose] = useState<"idle" | "cheer" | "dance" | "oops">("idle");
+  // Позы «oops» больше нет: на неудачной попытке маскот остаётся добрым.
+  const [pose, setPose] = useState<"idle" | "cheer" | "dance">("idle");
   const [kick, setKick] = useState<"" | "kick" | "kick-big">("");
   const [flash, setFlash] = useState(false);
   const [slam, setSlam] = useState<string | null>(null);
@@ -95,6 +99,7 @@ export function ZubrykApp() {
   const [floats, setFloats] = useState<{ id: number; text: string; x: string }[]>([]);
   const [help, setHelp] = useState(false);
   const [sound, setSound] = useState(true);
+  const [voice, setVoice] = useState(true);
   const [motion, setMotion] = useState(true);
   const [note, setNote] = useState("");
   const [stamps, setStamps] = useState<Stamp[]>([]);
@@ -192,9 +197,11 @@ export function ZubrykApp() {
     try {
       const prefs = JSON.parse(localStorage.getItem(PREF) || "{}") as {
         sound?: boolean;
+        voice?: boolean;
         motion?: boolean;
       };
       if (typeof prefs.sound === "boolean") setSound(prefs.sound);
+      if (typeof prefs.voice === "boolean") setVoice(prefs.voice);
       if (typeof prefs.motion === "boolean") setMotion(prefs.motion);
     } catch {
       /* ignore broken prefs */
@@ -203,8 +210,9 @@ export function ZubrykApp() {
 
   useEffect(() => {
     fest.setMuted(!sound);
-    localStorage.setItem(PREF, JSON.stringify({ sound, motion }));
-  }, [sound, motion]);
+    if (!voice) stopSpeaking();
+    localStorage.setItem(PREF, JSON.stringify({ sound, voice, motion }));
+  }, [sound, voice, motion]);
 
   useEffect(() => {
     if (skipSave.current) {
@@ -336,9 +344,13 @@ export function ZubrykApp() {
     fest.tap();
   }
 
-  function begin(nextIndex: number) {
+  /** Запуск уровня. items — реванш: играем только те задания, где было трудно. */
+  function begin(nextIndex: number, items?: Item[]) {
     const next = pack.levels[nextIndex];
     if (!next) return;
+    // Реванш играет только по промахам; если список пуст — обычный полный уровень.
+    const picked = items?.filter(Boolean);
+    const pool = picked?.length ? picked : next.items;
     fest.ensure();
     fest.hello();
     fest.setLevel(1);
@@ -346,7 +358,8 @@ export function ZubrykApp() {
     pointsRef.current = 0;
     stampsRef.current = [];
     startedRef.current = performance.now();
-    setQueue(shuffle(next.items));
+    setQueue(shuffle(pool));
+    setPractice(Boolean(picked?.length));
     setLevelIndex(nextIndex);
     setIndex(0);
     setCorrect(0);
@@ -390,6 +403,7 @@ export function ZubrykApp() {
       setCorrect(correctRef.current);
       fest.setLevel(nextHype);
       fest.correct(nextHype);
+      buzz(nextHype >= 6 ? "big" : "ok");
       setPose(nextHype >= 6 ? "dance" : "cheer");
       setKick(nextHype >= 4 ? "kick-big" : "kick");
       setFlash(true);
@@ -410,6 +424,7 @@ export function ZubrykApp() {
     // Ошибка — это не наказание. Первый раз показываем верный ответ, но
     // оставляем варианты нажимаемыми: ребёнок пробует ещё раз сам.
     fest.wrong();
+    buzz("soft");
     setMisses((list) => (list.some((m) => m.index === index) ? list : [...list, { index, item }]));
     if (!retry) {
       setRetry(true);
@@ -463,8 +478,8 @@ export function ZubrykApp() {
     setCorrect(hits);
     setRunPoints(pts);
     setStamps(taken);
-    setPassedRun(okRun);
-    if (okRun) {
+    setPassedRun(practice ? true : okRun);
+    if (okRun && !practice) {
       fest.setLevel(8);
       fest.fanfare();
       setPose("dance");
@@ -472,7 +487,8 @@ export function ZubrykApp() {
       burst(10);
       setHype(8);
     }
-    if (level && current) {
+    // Реванш — это тренировка, а не зачёт: в рейтинг он не пишется и приз не открывает.
+    if (level && current && !practice) {
       // Складываем новую спробу ў той жа лепшы стан, які захаваецца ў localStorage,
       // і толькі пасля гэтага лічым, якія прызы адкрыліся менавіта цяпер.
       const before = player?.best ?? {};
@@ -517,6 +533,20 @@ export function ZubrykApp() {
   const runMs = stamps.reduce((sum, stamp) => sum + stamp.ms, 0);
   const mine = player ? totals(player, levelLens) : null;
 
+  /** Озвучка вопроса: ребёнок, который ещё не читает бегло, слушает, а не читает. */
+  function readItem(target: Item) {
+    if (!voice) return;
+    speak(target.prompt, { lang: courseId === "ru" ? "ru" : "be" });
+  }
+
+  useEffect(() => {
+    if (screen !== "play" || !item || locked) return;
+    readItem(item);
+    // Озвучка привязана к номеру вопроса, а не к тексту: смена языка и
+    // переключение галочки её не перезапускают.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, index, voice, courseId]);
+
   return (
     <div className={motion ? "shell" : "shell still"} data-hype={String(hype)}>
       <div className="sky" />
@@ -533,15 +563,7 @@ export function ZubrykApp() {
         <img
           className={
             "mascot " +
-            (pose === "cheer"
-              ? "pop"
-              : pose === "dance"
-                ? "dance"
-                : pose === "oops"
-                  ? "oops"
-                  : motion
-                    ? "bob"
-                    : "")
+            (pose === "cheer" ? "pop" : pose === "dance" ? "dance" : motion ? "bob" : "")
           }
           src={screen === "result" && passedRun ? "/art/dance.png" : `/art/${pose}.png`}
           alt="Дима"
@@ -587,6 +609,21 @@ export function ZubrykApp() {
             }}
           >
             {sound ? <Volume2 size={20} /> : <VolumeX size={20} />}
+          </button>
+          <button
+            className="icon"
+            aria-pressed={voice}
+            aria-label={t.voice}
+            onClick={() => {
+              setVoice((value) => {
+                const next = !value;
+                if (next) speak(t.go, { lang: courseId === "ru" ? "ru" : "be" });
+                else stopSpeaking();
+                return next;
+              });
+            }}
+          >
+            {voice ? <MessageCircle size={20} /> : <VolumeX size={20} />}
           </button>
           <button
             className="icon"
@@ -839,8 +876,12 @@ export function ZubrykApp() {
 
         {screen === "result" && level ? (
           <section className="card">
-            <div className="kicker">{passedRun ? t.passed : t.retry}</div>
-            {isRecord && passedRun ? <div className="fest-banner">{t.record}</div> : null}
+            <div className="kicker">
+              {practice ? t.practiced : passedRun ? t.passed : t.softFail}
+            </div>
+            {isRecord && passedRun && !practice ? (
+              <div className="fest-banner">{t.record}</div>
+            ) : null}
             <div className="score">{runPoints}</div>
             <p className="hint">
               {correct} {courseId === "ru" ? "из" : "з"} {queue.length} {t.summary} · {clock(runMs)}{" "}
@@ -860,6 +901,22 @@ export function ZubrykApp() {
                 </span>
               ))}
             </div>
+            {misses.length > 0 && !practice ? (
+              <div className="rematchbar">
+                <button
+                  className="btn gold wide"
+                  onClick={() =>
+                    begin(
+                      levelIndex,
+                      misses.map((m) => m.item),
+                    )
+                  }
+                >
+                  {t.rematch}
+                </button>
+                <p className="hint">{t.rematchNote}</p>
+              </div>
+            ) : null}
             {misses.length > 0 ? (
               <>
                 <p className="hint learn">{t.learnMore}</p>
