@@ -12,6 +12,8 @@ class FestAudio {
   private acc = 0;
   private step = 0;
   private level = 0;
+  /** Плавно догоняющий уровень: музыка так же мягко гаснет, как нарастала. */
+  private musicLevel = 0;
   private muted = false;
   private alive = false;
 
@@ -70,6 +72,15 @@ class FestAudio {
 
   setLevel(level: number) {
     this.level = Math.max(0, Math.min(8, level));
+    // Музыка уже не нужна — гасим шину сразу, без щелчка, но с уважением к ушам.
+    if (this.level === 0 && this.music && this.ctx) {
+      this.music.gain.setTargetAtTime(0, this.ctx.currentTime, 0.12);
+    }
+  }
+
+  /** Сброс тревожного слоя: музыка должна умолкнуть вместе с уроком. */
+  stopMusic() {
+    this.setLevel(0);
   }
 
   tap() {
@@ -110,8 +121,24 @@ class FestAudio {
   }
 
   private advance(dt: number) {
-    if (!this.alive || this.muted || !this.ctx || this.level < 1) return;
-    const beat = this.level >= 7 ? 0.11 : this.level >= 4 ? 0.135 : 0.17;
+    if (!this.alive || !this.ctx) return;
+    // Громкость музыки всегда едет к заданному уровню, а не прыгает: тревожный
+    // слой нарастает постепенно и так же постепенно гаснет, когда урок кончился.
+    const target = this.muted ? 0 : this.level;
+    const diff = target - this.musicLevel;
+    const rate = diff > 0 ? 2.4 : 1.6;
+    const move = dt * rate;
+    this.musicLevel += Math.abs(diff) <= move ? diff : Math.sign(diff) * move;
+    if (this.music) {
+      const want = this.musicLevel < 0.02 ? 0 : 0.62;
+      this.music.gain.setTargetAtTime(want, this.ctx.currentTime, 0.06);
+    }
+    if (this.musicLevel < 1) {
+      this.acc = 0;
+      return;
+    }
+    const lv = this.musicLevel;
+    const beat = lv >= 7 ? 0.11 : lv >= 4 ? 0.135 : 0.17;
     this.acc += dt;
     while (this.acc >= beat) {
       this.acc -= beat;
@@ -121,7 +148,7 @@ class FestAudio {
   }
 
   private pulse() {
-    const lv = this.level;
+    const lv = this.musicLevel;
     const s = this.step;
     const root = SCALE[0] ?? 146;
     const fifth = SCALE[3] ?? 220;

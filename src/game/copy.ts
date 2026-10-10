@@ -46,7 +46,6 @@ export type Copy = {
   learnMore: string;
   tryAgain: string;
   hintBtn: string;
-  voice: string;
   almost: string;
   rematch: string;
   rematchNote: string;
@@ -141,7 +140,6 @@ export const BE: Copy = {
   learnMore: "Ты ў гэтым разе даведаўся новага:",
   tryAgain: "Амаль! Правільны адказ падсвэціўся. Паспрабуй яшчэ раз!",
   hintBtn: "Падказаць",
-  voice: "Голас",
   almost: "Амаль! Глядзі.",
   rematch: "Паўтарыць толькі гэтыя",
   rematchNote: "Пераспрабуем толькі тыя заданні, дзе былі цяжка.",
@@ -224,7 +222,6 @@ export const RU: Copy = {
   learnMore: "Ты в этот раз узнал новое:",
   tryAgain: "Почти! Правильный ответ подсвечен. Попробуй ещё раз!",
   hintBtn: "Подсказать",
-  voice: "Голос",
   almost: "Почти! Смотри.",
   rematch: "Повторить только эти",
   rematchNote: "Перепробуем только те задания, где было трудно.",

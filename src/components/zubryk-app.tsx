@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CircleHelp, Gift, MessageCircle, Sparkles, Trophy, Volume2, VolumeX } from "lucide-react";
+import { CircleHelp, Gift, Sparkles, Trophy, Volume2, VolumeX } from "lucide-react";
 import { fest } from "@/game/audio";
-import { buzz, speak, stopSpeaking } from "@/game/speech";
+import { buzz } from "@/game/speech";
 import { LEVELS, PRAISE, STAGES, shuffle, type Item, type Level } from "@/game/content";
 import { RU_LEVELS, RU_PRAISE, RU_STAGES } from "@/game/content-ru";
 import { BE, RU, type Copy } from "@/game/copy";
@@ -99,7 +99,6 @@ export function ZubrykApp() {
   const [floats, setFloats] = useState<{ id: number; text: string; x: string }[]>([]);
   const [help, setHelp] = useState(false);
   const [sound, setSound] = useState(true);
-  const [voice, setVoice] = useState(true);
   const [motion, setMotion] = useState(true);
   const [note, setNote] = useState("");
   const [stamps, setStamps] = useState<Stamp[]>([]);
@@ -197,11 +196,9 @@ export function ZubrykApp() {
     try {
       const prefs = JSON.parse(localStorage.getItem(PREF) || "{}") as {
         sound?: boolean;
-        voice?: boolean;
         motion?: boolean;
       };
       if (typeof prefs.sound === "boolean") setSound(prefs.sound);
-      if (typeof prefs.voice === "boolean") setVoice(prefs.voice);
       if (typeof prefs.motion === "boolean") setMotion(prefs.motion);
     } catch {
       /* ignore broken prefs */
@@ -210,9 +207,14 @@ export function ZubrykApp() {
 
   useEffect(() => {
     fest.setMuted(!sound);
-    if (!voice) stopSpeaking();
-    localStorage.setItem(PREF, JSON.stringify({ sound, voice, motion }));
-  }, [sound, voice, motion]);
+    localStorage.setItem(PREF, JSON.stringify({ sound, motion }));
+  }, [sound, motion]);
+
+  // Тревожная музыка живёт только внутри урока: любой выход — экран результата,
+  // список уровней, смена предмета — глушит её, иначе она так и гудит дальше.
+  useEffect(() => {
+    if (screen !== "play") fest.stopMusic();
+  }, [screen]);
 
   useEffect(() => {
     if (skipSave.current) {
@@ -533,20 +535,6 @@ export function ZubrykApp() {
   const runMs = stamps.reduce((sum, stamp) => sum + stamp.ms, 0);
   const mine = player ? totals(player, levelLens) : null;
 
-  /** Озвучка вопроса: ребёнок, который ещё не читает бегло, слушает, а не читает. */
-  function readItem(target: Item) {
-    if (!voice) return;
-    speak(target.prompt, { lang: courseId === "ru" ? "ru" : "be" });
-  }
-
-  useEffect(() => {
-    if (screen !== "play" || !item || locked) return;
-    readItem(item);
-    // Озвучка привязана к номеру вопроса, а не к тексту: смена языка и
-    // переключение галочки её не перезапускают.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen, index, voice, courseId]);
-
   return (
     <div className={motion ? "shell" : "shell still"} data-hype={String(hype)}>
       <div className="sky" />
@@ -609,21 +597,6 @@ export function ZubrykApp() {
             }}
           >
             {sound ? <Volume2 size={20} /> : <VolumeX size={20} />}
-          </button>
-          <button
-            className="icon"
-            aria-pressed={voice}
-            aria-label={t.voice}
-            onClick={() => {
-              setVoice((value) => {
-                const next = !value;
-                if (next) speak(t.go, { lang: courseId === "ru" ? "ru" : "be" });
-                else stopSpeaking();
-                return next;
-              });
-            }}
-          >
-            {voice ? <MessageCircle size={20} /> : <VolumeX size={20} />}
           </button>
           <button
             className="icon"
@@ -945,7 +918,7 @@ export function ZubrykApp() {
                 onClick={() => {
                   setScreen("home");
                   setHype(0);
-                  fest.setLevel(0);
+                  fest.stopMusic();
                   setPose("idle");
                 }}
               >
