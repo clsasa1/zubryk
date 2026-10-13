@@ -1245,3 +1245,9 @@
   margin: 0;
   font-size: 0.85rem;
 }
+
+.world-gap {
+  text-align: center;
+  font-weight: 900;
+  opacity: 0.6;
+}

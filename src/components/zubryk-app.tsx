@@ -1,4 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  fetchRating,
+  markCourse,
+  markPlayer,
+  newPlayerId,
+  startSync,
+  type Rating,
+} from "@/game/sync";
 import { CircleHelp, Gift, Sparkles, Trophy, Volume2, VolumeX } from "lucide-react";
 import { fest } from "@/game/audio";
 import { buzz } from "@/game/speech";
@@ -25,7 +33,7 @@ import {
   type Player,
 } from "@/game/score";
 
-type Screen = "register" | "pick" | "name" | "home" | "rule" | "play" | "result" | "board" | "prizes";
+type Screen = "world" | "register" | "pick" | "name" | "home" | "rule" | "play" | "result" | "board" | "prizes";
 type Stamp = { ms: number; ok: boolean };
 type Miss = { index: number; item: Item };
 type Bit = {
@@ -54,7 +62,7 @@ const PROFILE_KEY = "zubryk-profile-v1";
 const AGE_MIN = 5;
 const AGE_MAX = 99;
 
-type Profile = { name: string; age: number };
+type Profile = { id: string; name: string; age: number };
 
 function cleanName(raw: string): string {
   return raw.trim().replace(/\s+/g, " ");
@@ -67,7 +75,14 @@ function loadProfile(): Profile | null {
     const age = Number(raw?.age);
     if (!name || name.length > 30 || !Number.isInteger(age) || age < AGE_MIN || age > AGE_MAX)
       return null;
-    return { name, age };
+    if (typeof raw.id === "string" && /^[a-f0-9-]{16,40}$/i.test(raw.id)) return { id: raw.id, name, age };
+    // Гулец зарэгістраваўся да з'яўлення агульнага рэйтынгу: даём id і адпраўляем усё, што ёсць.
+    const upgraded: Profile = { id: newPlayerId(), name, age };
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(upgraded));
+    markPlayer();
+    markCourse("be");
+    markCourse("ru");
+    return upgraded;
   } catch {
     return null;
   }
@@ -112,6 +127,9 @@ export function ZubrykApp() {
   const [regName, setRegName] = useState("");
   const [regAge, setRegAge] = useState("");
   const [regErrors, setRegErrors] = useState<{ name?: string; age?: string }>({});
+  const [world, setWorld] = useState<Rating | null>(null);
+  const [worldState, setWorldState] = useState<"idle" | "loading" | "error">("idle");
+  const lastSaved = useRef<Record<string, string>>({});
   const [levelIndex, setLevelIndex] = useState(0);
   const [queue, setQueue] = useState<Item[]>([]);
   const [index, setIndex] = useState(0);
@@ -164,6 +182,7 @@ export function ZubrykApp() {
       ? { levels: RU_LEVELS, stages: RU_STAGES, praise: RU_PRAISE, t: RU }
       : { levels: LEVELS, stages: STAGES, praise: PRAISE, t: BE };
   const t: Copy = screen === "pick" ? RU : pack.t;
+  const ru = courseId === "ru";
   const unlocked = openCount(player, pack.levels);
   const level: Level | undefined = pack.levels[levelIndex];
   // Длина уровней разная, поэтому рейтинг и «сколько нужно для прохода» считаем по факту.
@@ -219,6 +238,14 @@ export function ZubrykApp() {
     const id: CourseId | null = stored === "ru" || stored === "be" ? stored : null;
     const savedProfile = loadProfile();
     setProfile(savedProfile);
+    startSync({
+      profile: () => loadProfile(),
+      best: (course) => {
+        const me = loadProfile();
+        if (!me) return {};
+        return loadSave(SAVE_KEYS[course]).players.find((item) => item.name === me.name)?.best ?? {};
+      },
+    });
     if (!savedProfile) {
       setScreen("register");
     } else if (id) {
@@ -260,7 +287,12 @@ export function ZubrykApp() {
       return;
     }
     if (screen === "pick") return;
-    localStorage.setItem(SAVE_KEYS[courseId], JSON.stringify({ current, players }));
+    const json = JSON.stringify({ current, players });
+    localStorage.setItem(SAVE_KEYS[courseId], json);
+    const prev = lastSaved.current[courseId];
+    lastSaved.current[courseId] = json;
+    if (prev !== undefined && prev !== json && profile) markCourse(courseId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current, players, courseId, screen]);
 
   useEffect(() => {
@@ -379,8 +411,9 @@ export function ZubrykApp() {
       errors.age = `Узрост — цэлы лік ад ${AGE_MIN} да ${AGE_MAX}.`;
     setRegErrors(errors);
     if (errors.name || errors.age) return;
-    const next: Profile = { name, age };
+    const next: Profile = { id: newPlayerId(), name, age };
     localStorage.setItem(PROFILE_KEY, JSON.stringify(next));
+    markPlayer();
     setProfile(next);
     setNote("");
     fest.ensure();
@@ -388,6 +421,7 @@ export function ZubrykApp() {
     const stored = localStorage.getItem(COURSE_KEY);
     if (stored === "ru" || stored === "be") {
       const save = withProfile(loadSave(SAVE_KEYS[stored]), next);
+      if (save.players.find((item) => item.name === next.name)?.best) markCourse(stored);
       setCourseId(stored);
       setPlayers(save.players);
       setCurrent(save.current);
@@ -395,6 +429,18 @@ export function ZubrykApp() {
     } else {
       setScreen("pick");
     }
+  }
+
+  function openWorld() {
+    setScreen("world");
+    setWorldState("loading");
+    fest.tap();
+    fetchRating(courseId, profile?.id)
+      .then((data) => {
+        setWorld(data);
+        setWorldState("idle");
+      })
+      .catch(() => setWorldState("error"));
   }
 
   function changePlayer() {
@@ -847,6 +893,9 @@ export function ZubrykApp() {
                   {t.rating}
                   {mine ? ` · ${mine.points}` : ""}
                 </button>
+                <button className="btn gold" onClick={openWorld}>
+                  {courseId === "ru" ? "Общий рейтинг" : "Агульны рэйтынг"}
+                </button>
                 <button className="btn ghost" onClick={() => setScreen("prizes")}>
                   {t.prizes}
                   {earnedSum > 0 ? ` · ${earnedSum} ${t.rubles}` : ""}
@@ -1076,6 +1125,82 @@ export function ZubrykApp() {
               >
                 {t.toLevels}
               </button>
+            </div>
+          </section>
+        ) : null}
+
+        {screen === "world" ? (
+          <section className="card">
+            <div className="kicker">{ru ? "Все игроки" : "Усе гульцы"}</div>
+            <h2 className="prompt">{ru ? "Общий рейтинг" : "Агульны рэйтынг"}</h2>
+            <p className="hint">
+              {ru
+                ? `Русский язык · очки и пройденные уровни${world ? ` · игроков: ${world.players}` : ""}`
+                : `Беларуская мова · ачкі і пройдзеныя ўзроўні${world ? ` · гульцоў: ${world.players}` : ""}`}
+            </p>
+            {worldState === "loading" ? <p className="hint">{ru ? "Загружаем…" : "Загружаем…"}</p> : null}
+            {worldState === "error" ? (
+              <p className="hint">
+                {ru
+                  ? "Не получилось загрузить рейтинг. Проверь интернет и попробуй ещё раз."
+                  : "Не атрымалася загрузіць рэйтынг. Правер інтэрнэт і паспрабуй яшчэ раз."}
+              </p>
+            ) : null}
+            {worldState === "idle" && world && world.top.length === 0 ? (
+              <p className="hint">
+                {ru ? "Пока никто не набрал очков. Будь первым!" : "Пакуль ніхто не набраў ачкоў. Будзь першым!"}
+              </p>
+            ) : null}
+            {worldState === "idle" && world ? (
+              <div className="stack">
+                {world.top.map((row) => (
+                  <div key={row.place} className={row.me ? "board-row me" : "board-row"}>
+                    <span className="num">{row.place}</span>
+                    <span className="level-copy">
+                      <b>
+                        {row.name}
+                        {row.me ? (ru ? " (ты)" : " (ты)") : ""}
+                      </b>
+                      <span className="ru">
+                        {ru ? "уровни" : "узроўні"}: {row.passed}/{world.levels}
+                      </span>
+                    </span>
+                    <span className="best">{row.points}</span>
+                  </div>
+                ))}
+                {world.me && !world.top.some((row) => row.me) ? (
+                  <>
+                    <div className="world-gap">…</div>
+                    <div className="board-row me">
+                      <span className="num">{world.me.place}</span>
+                      <span className="level-copy">
+                        <b>{world.me.name} (ты)</b>
+                        <span className="ru">
+                          {ru ? "уровни" : "узроўні"}: {world.me.passed}/{world.levels}
+                        </span>
+                      </span>
+                      <span className="best">{world.me.points}</span>
+                    </div>
+                  </>
+                ) : null}
+                {!world.me && profile ? (
+                  <p className="hint">
+                    {ru
+                      ? "Пройди уровень — и ты появишься в рейтинге."
+                      : "Прайдзі ўзровень — і ты з'явішся ў рэйтынгу."}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+            <div className="row">
+              <button className="btn gold" onClick={() => setScreen("home")}>
+                {t.back}
+              </button>
+              {worldState !== "loading" ? (
+                <button className="btn ghost" onClick={openWorld}>
+                  {ru ? "Обновить" : "Абнавіць"}
+                </button>
+              ) : null}
             </div>
           </section>
         ) : null}
