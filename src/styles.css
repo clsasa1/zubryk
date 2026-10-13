@@ -979,6 +979,55 @@
   color: var(--color-ink);
 }
 
+.regbox form {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 0.8rem;
+}
+.field {
+  display: grid;
+  gap: 0.3rem;
+  text-align: left;
+}
+.field-label {
+  font-weight: 900;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.regbox input {
+  -moz-appearance: textfield;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--color-ink) 12%, transparent);
+  outline: 3px solid transparent;
+  transition: outline-color 0.15s;
+}
+.regbox input::-webkit-outer-spin-button,
+.regbox input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.regbox input:focus-visible {
+  outline-color: var(--color-gold);
+}
+.regbox input[aria-invalid] {
+  outline-color: #e8590c;
+}
+.field-error {
+  color: #c2410c;
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+.greet {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.8rem;
+  font-weight: 800;
+}
+
 .timepill {
   font-weight: 900;
   background: color-mix(in srgb, var(--color-cream) 16%, transparent);

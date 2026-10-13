@@ -25,7 +25,7 @@ import {
   type Player,
 } from "@/game/score";
 
-type Screen = "pick" | "name" | "home" | "rule" | "play" | "result" | "board" | "prizes";
+type Screen = "register" | "pick" | "name" | "home" | "rule" | "play" | "result" | "board" | "prizes";
 type Stamp = { ms: number; ok: boolean };
 type Miss = { index: number; item: Item };
 type Bit = {
@@ -50,6 +50,36 @@ const SAVE_KEYS: Record<CourseId, string> = {
 };
 const COURSE_KEY = "zubryk-course";
 const PREF = "zubryk-prefs-v2";
+const PROFILE_KEY = "zubryk-profile-v1";
+const AGE_MIN = 5;
+const AGE_MAX = 99;
+
+type Profile = { name: string; age: number };
+
+function cleanName(raw: string): string {
+  return raw.trim().replace(/\s+/g, " ");
+}
+
+function loadProfile(): Profile | null {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PROFILE_KEY) || "") as Profile;
+    const name = cleanName(String(raw?.name ?? ""));
+    const age = Number(raw?.age);
+    if (!name || name.length > 30 || !Number.isInteger(age) || age < AGE_MIN || age > AGE_MAX)
+      return null;
+    return { name, age };
+  } catch {
+    return null;
+  }
+}
+
+/** Профіль гульца ўжо ёсць у спісе курса — альбо дадаём яго туды. */
+function withProfile(save: Save, profile: Profile): Save {
+  const players = save.players.some((item) => item.name === profile.name)
+    ? save.players
+    : [...save.players, { name: profile.name, best: {} }];
+  return { current: profile.name, players };
+}
 const COLORS = ["#f0b429", "#4c74ff", "#fff6e8", "#ff8f6b", "#ffd1e8"];
 
 function loadSave(key: string): Save {
@@ -78,6 +108,10 @@ export function ZubrykApp() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [current, setCurrent] = useState("");
   const [draft, setDraft] = useState("");
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [regName, setRegName] = useState("");
+  const [regAge, setRegAge] = useState("");
+  const [regErrors, setRegErrors] = useState<{ name?: string; age?: string }>({});
   const [levelIndex, setLevelIndex] = useState(0);
   const [queue, setQueue] = useState<Item[]>([]);
   const [index, setIndex] = useState(0);
@@ -166,7 +200,7 @@ export function ZubrykApp() {
   }, [current, courseId]);
 
   function selectCourse(id: CourseId) {
-    const save = loadSave(SAVE_KEYS[id]);
+    const save = profile ? withProfile(loadSave(SAVE_KEYS[id]), profile) : loadSave(SAVE_KEYS[id]);
     setCourseId(id);
     setPlayers(save.players);
     setCurrent(save.current);
@@ -183,8 +217,12 @@ export function ZubrykApp() {
   useEffect(() => {
     const stored = localStorage.getItem(COURSE_KEY);
     const id: CourseId | null = stored === "ru" || stored === "be" ? stored : null;
-    if (id) {
-      const save = loadSave(SAVE_KEYS[id]);
+    const savedProfile = loadProfile();
+    setProfile(savedProfile);
+    if (!savedProfile) {
+      setScreen("register");
+    } else if (id) {
+      const save = withProfile(loadSave(SAVE_KEYS[id]), savedProfile);
       setCourseId(id);
       setPlayers(save.players);
       setCurrent(save.current);
@@ -327,6 +365,48 @@ export function ZubrykApp() {
     const x = `${30 + Math.random() * 40}%`;
     setFloats((list) => [...list.slice(-4), { id, text, x }]);
     window.setTimeout(() => setFloats((list) => list.filter((item) => item.id !== id)), 800);
+  }
+
+  function register() {
+    const name = cleanName(regName);
+    const ageText = regAge.trim();
+    const age = Number(ageText);
+    const errors: { name?: string; age?: string } = {};
+    if (name.length < 1) errors.name = "Напішы сваё імя.";
+    else if (name.length > 30) errors.name = "Імя задоўгае — не больш за 30 літар.";
+    if (!ageText) errors.age = "Напішы, колькі табе гадоў.";
+    else if (!/^\d+$/.test(ageText) || !Number.isInteger(age) || age < AGE_MIN || age > AGE_MAX)
+      errors.age = `Узрост — цэлы лік ад ${AGE_MIN} да ${AGE_MAX}.`;
+    setRegErrors(errors);
+    if (errors.name || errors.age) return;
+    const next: Profile = { name, age };
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(next));
+    setProfile(next);
+    setNote("");
+    fest.ensure();
+    fest.tap();
+    const stored = localStorage.getItem(COURSE_KEY);
+    if (stored === "ru" || stored === "be") {
+      const save = withProfile(loadSave(SAVE_KEYS[stored]), next);
+      setCourseId(stored);
+      setPlayers(save.players);
+      setCurrent(save.current);
+      setScreen("home");
+    } else {
+      setScreen("pick");
+    }
+  }
+
+  function changePlayer() {
+    localStorage.removeItem(PROFILE_KEY);
+    setProfile(null);
+    setCurrent("");
+    setRegName("");
+    setRegAge("");
+    setRegErrors({});
+    setNote("");
+    setScreen("register");
+    fest.tap();
   }
 
   function choosePlayer(name: string) {
@@ -574,10 +654,16 @@ export function ZubrykApp() {
         <header className="topbar">
           <div className="brand">
             <h1>Зубрик</h1>
-            <p>{current && screen !== "pick" ? current : t.sub}</p>
+            <p>
+              {current && screen !== "pick" && screen !== "register"
+                ? current
+                : screen === "pick" && profile
+                  ? profile.name
+                  : t.sub}
+            </p>
           </div>
           <div className="grow" />
-          {screen !== "name" && screen !== "pick" ? (
+          {screen !== "name" && screen !== "pick" && screen !== "register" ? (
             <button className="icon" aria-label={t.rate} onClick={() => setScreen("board")}>
               <Trophy size={20} />
             </button>
@@ -613,8 +699,74 @@ export function ZubrykApp() {
 
         {note ? <p className="note">{note}</p> : null}
 
+        {screen === "register" ? (
+          <section className="card namebox regbox">
+            <div className="kicker">Рэгістрацыя</div>
+            <h2 className="prompt">Давай пазнаёмімся!</h2>
+            <p className="hint">Каб пачаць гульню, напішы сваё імя і ўзрост.</p>
+            <form
+              noValidate
+              onSubmit={(event) => {
+                event.preventDefault();
+                register();
+              }}
+            >
+              <label className="field">
+                <span className="field-label">Імя</span>
+                <input
+                  value={regName}
+                  maxLength={30}
+                  autoComplete="given-name"
+                  enterKeyHint="next"
+                  placeholder="Напрыклад, Дзіма"
+                  aria-invalid={regErrors.name ? true : undefined}
+                  onChange={(event) => {
+                    setRegName(event.target.value);
+                    if (regErrors.name) setRegErrors((e) => ({ ...e, name: undefined }));
+                  }}
+                />
+                {regErrors.name ? <span className="field-error">{regErrors.name}</span> : null}
+              </label>
+              <label className="field">
+                <span className="field-label">Узрост</span>
+                <input
+                  value={regAge}
+                  type="number"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  min={AGE_MIN}
+                  max={AGE_MAX}
+                  enterKeyHint="go"
+                  placeholder="Колькі табе гадоў?"
+                  aria-invalid={regErrors.age ? true : undefined}
+                  onChange={(event) => {
+                    setRegAge(event.target.value.replace(/\D/g, "").slice(0, 2));
+                    if (regErrors.age) setRegErrors((e) => ({ ...e, age: undefined }));
+                  }}
+                />
+                {regErrors.age ? <span className="field-error">{regErrors.age}</span> : null}
+              </label>
+              <div className="row">
+                <button className="btn gold" type="submit">
+                  Пачаць
+                </button>
+              </div>
+            </form>
+          </section>
+        ) : null}
+
         {screen === "pick" ? (
           <section className="card">
+            {profile ? (
+              <div className="greet">
+                <span>
+                  Прывітанне, <b>{profile.name}</b>!
+                </span>
+                <button className="btn ghost" type="button" onClick={changePlayer}>
+                  Змяніць гульца
+                </button>
+              </div>
+            ) : null}
             <div className="kicker">Зубрик</div>
             <h2 className="prompt">Что тренируем?</h2>
             <p className="hint">
@@ -699,8 +851,8 @@ export function ZubrykApp() {
                   {t.prizes}
                   {earnedSum > 0 ? ` · ${earnedSum} ${t.rubles}` : ""}
                 </button>
-                <button className="btn ghost" onClick={() => setScreen("name")}>
-                  {t.changeName}
+                <button className="btn ghost" onClick={changePlayer}>
+                  {courseId === "ru" ? "Сменить игрока" : "Змяніць гульца"}
                 </button>
                 <button className="btn ghost" onClick={() => setScreen("pick")}>
                   {t.switchCourse}
