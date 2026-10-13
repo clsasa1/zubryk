@@ -673,7 +673,7 @@ export function ZubrykApp() {
       <div className="flags" aria-hidden="true" />
       <canvas ref={canvasRef} className="juice" />
       <div className={flash ? "flash on" : "flash"} />
-      <div className="dock">
+      <div className={screen === "play" ? "dock" : "dock flow"}>
         <img
           className={
             "mascot " +

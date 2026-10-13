@@ -51,6 +51,9 @@
 }
 
 .shell {
+  /* Вышыня маскота: адна крыніца праўды для дока і для запасу знізу пад ім. */
+  --dock-h: clamp(10.5rem, 34vw, 16rem);
+  --dock-w: clamp(7.5rem, 24vw, 11rem);
   min-height: 100dvh;
   position: relative;
   overflow-x: hidden;
@@ -191,7 +194,7 @@
   width: min(920px, 100%);
   margin: 0 auto;
   padding: calc(1rem + env(safe-area-inset-top, 0px)) 1rem
-    calc(13rem + env(safe-area-inset-bottom, 0px));
+    calc(var(--dock-h) + 0.75rem + env(safe-area-inset-bottom, 0px));
 }
 
 .frame.kick {
@@ -541,9 +544,15 @@
   pointer-events: none;
 }
 
+/* Па-за ўрокам маскот стаіць у канцы старонкі (у зарэзерваваным месцы пад кантэнтам),
+   а не вісіць над спісам, таму пры пракрутцы не закрывае кнопкі. */
+.dock.flow {
+  position: absolute;
+}
+
 .dock img {
-  width: clamp(7.5rem, 24vw, 11rem);
-  height: clamp(10.5rem, 34vw, 16rem);
+  width: var(--dock-w);
+  height: var(--dock-h);
   object-fit: contain;
   object-position: center bottom;
   filter: drop-shadow(0 10px 12px color-mix(in srgb, var(--color-night) 45%, transparent));
@@ -818,21 +827,18 @@
   .prompt {
     font-size: 2.2rem;
   }
-  .dock img {
-    width: 14rem;
-    height: 20rem;
+  .shell {
+    --dock-w: 14rem;
+    --dock-h: 20rem;
   }
 }
 
 /* Низкий экран (ландшафт, старые телефоны): док маскота не должен съедать пол-экрана,
    иначе карточка с вопросом уезжает под маскот и нужен скролл. */
 @media (max-height: 720px) {
-  .frame {
-    padding-bottom: calc(9.5rem + env(safe-area-inset-bottom, 0px));
-  }
-  .dock img {
-    width: clamp(5rem, 17vw, 7.5rem);
-    height: clamp(7rem, 24vw, 10.5rem);
+  .shell {
+    --dock-w: clamp(5rem, 17vw, 7.5rem);
+    --dock-h: clamp(7rem, 24vw, 10.5rem);
   }
   .bubble {
     margin-bottom: 0.7rem;
@@ -841,12 +847,9 @@
 }
 
 @media (max-height: 600px) {
-  .frame {
-    padding-bottom: calc(7.5rem + env(safe-area-inset-bottom, 0px));
-  }
-  .dock img {
-    width: 4.5rem;
-    height: 6.25rem;
+  .shell {
+    --dock-w: 4.5rem;
+    --dock-h: 6.25rem;
   }
   .bubble small {
     display: none;
